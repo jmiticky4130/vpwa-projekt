@@ -15,6 +15,7 @@ router.on('/').render('pages/home')
 
 const createUserValidator = vine.compile(
   vine.object({
+    nickname: vine.string().trim().optional(),
     firstName: vine.string().trim().optional(),
     lastName: vine.string().trim().optional(),
     email: vine.string().email().trim(),
@@ -25,6 +26,7 @@ const createUserValidator = vine.compile(
 router.post('/api/users', async ({ request, response }) => {
   const payload = await request.validateUsing(createUserValidator)
   const user = await User.create({
+    nickname: payload.nickname ?? null,
     firstName: payload.firstName ?? null,
     lastName: payload.lastName ?? null,
     email: payload.email,
