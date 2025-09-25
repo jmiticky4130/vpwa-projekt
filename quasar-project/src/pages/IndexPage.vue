@@ -9,6 +9,7 @@
       <q-separator />
 
       <q-card-section class="q-gutter-md">
+        <q-input v-model="nickname" label="Nickname" dense filled />
         <q-input v-model="firstName" label="First name" dense filled />
         <q-input v-model="lastName" label="Last name" dense filled />
         <q-input v-model="email" label="Email" type="email" dense filled />
@@ -34,6 +35,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
+const nickname = ref('')
 const firstName = ref('')
 const lastName = ref('')
 const email = ref('')
@@ -44,22 +46,30 @@ const result = ref<{ error?: boolean; message: string } | null>(null)
 async function createUser() {
   result.value = null
   loading.value = true
+  console.log('Starting createUser function...')
+  console.log('Form values:', { firstName: firstName.value, lastName: lastName.value, email: email.value })
+
   try {
     const res = await fetch('/api/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        nickname: nickname.value || undefined,
         firstName: firstName.value || undefined,
         lastName: lastName.value || undefined,
         email: email.value,
         password: password.value,
       }),
     })
+    console.log('Fetch response:', res.status, res.ok)
     const data = await res.json().catch(() => ({}))
+    console.log('Response JSON:', data)
     if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`)
     result.value = { message: `Created user with id ${data.id}` }
+    console.log('Created user ID:', data.id)
     reset()
   } catch (err) {
+    console.error('Error creating user:', err)
     result.value = { error: true, message: String(err) }
   } finally {
     loading.value = false
