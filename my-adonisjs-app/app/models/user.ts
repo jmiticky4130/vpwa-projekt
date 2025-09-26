@@ -15,13 +15,13 @@ export default class User extends compose(BaseModel, AuthFinder) {
   declare id: number
 
   @column({ columnName: 'nickname' })
-  declare nickname: string | null
+  declare nickname: string
 
   @column({ columnName: 'first_name' })
-  declare firstName: string | null
+  declare firstName: string
 
   @column({ columnName: 'last_name' })
-  declare lastName: string | null
+  declare lastName: string
 
   @column()
   declare email: string
