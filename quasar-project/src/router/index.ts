@@ -6,6 +6,7 @@ import {
   createWebHistory,
 } from 'vue-router';
 import routes from './routes';
+import { useUserStore } from 'src/stores/user-store';
 
 /*
  * If not building with SSR mode, you can
@@ -16,7 +17,7 @@ import routes from './routes';
  * with the Router instance.
  */
 
-export default defineRouter(function (/* { store, ssrContext } */) {
+export default defineRouter(function ({ store /*, ssrContext */ }) {
   const createHistory = process.env.SERVER
     ? createMemoryHistory
     : process.env.VUE_ROUTER_MODE === 'history'
@@ -34,20 +35,14 @@ export default defineRouter(function (/* { store, ssrContext } */) {
   });
 
   Router.beforeEach((to) => {
-    // Determine auth presence purely from frontend storage keys. This keeps
-    // the router independent from any backend auth store.
-    let frontendUserRaw: string | null = null
-    try {
-      frontendUserRaw = localStorage.getItem('frontend_current_user') || sessionStorage.getItem('frontend_current_user') || null
-    } catch {
-      try { frontendUserRaw = sessionStorage.getItem('frontend_current_user') || null } catch { frontendUserRaw = null }
-    }
-    const frontendUser = !!frontendUserRaw
+    // Use Pinia store for auth state (in-memory only)
+    const userStore = useUserStore(store);
+    const isAuthenticated = !!userStore.currentUser;
 
-    if (to.meta.requiresAuth && !frontendUser) {
+    if (to.meta.requiresAuth && !isAuthenticated) {
       return { path: '/login', query: { redirect: to.fullPath } };
     }
-    if (to.meta.guestOnly && frontendUser) {
+    if (to.meta.guestOnly && isAuthenticated) {
       return { path: '/' };
     }
     return true;

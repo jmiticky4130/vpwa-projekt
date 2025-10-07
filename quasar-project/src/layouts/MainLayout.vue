@@ -1,72 +1,61 @@
 <template>
-	<q-layout view="lHh Lpr lFf" class="bg-dark">
-		<q-header elevated class="bg-primary text-white">
-			<q-toolbar>
-				<q-toolbar-title class="text-weight-medium cursor-pointer" @click="goHome">App</q-toolbar-title>
-				<div v-if="currentUser" class="row items-center q-gutter-sm">
-					<q-badge color="white" text-color="primary">{{ currentUser.email }}</q-badge>
-					<q-btn dense flat icon="logout" @click="logout" />
-				</div>
-				<div v-else class="row items-center q-gutter-sm">
-					<q-btn dense flat label="Login" @click="goLogin" />
-					<q-btn dense flat label="Sign up" @click="goSignup" />
-				</div>
-			</q-toolbar>
-		</q-header>
-		<q-page-container>
-			<div class="layout-with-channels" style="display:flex; height: calc(100vh - var(--q-header-height,56px)); overflow: hidden">
-				<ChannelNavigation v-if="currentUser" />
-				<div style="flex:1">
-					<router-view />
-				</div>
-			</div>
-		</q-page-container>
-	</q-layout>
+  <q-layout view="lHh Lpr lFf" class="bg-dark">
+    <q-header elevated class="bg-primary text-white">
+      <q-toolbar>
+        <q-toolbar-title class="text-weight-medium cursor-pointer" @click="goHome"
+          >App</q-toolbar-title
+        >
+        <div v-if="currentUser" class="row items-center q-gutter-sm">
+          <q-badge color="white" text-color="primary">{{ currentUser.email }}</q-badge>
+          <q-btn dense flat icon="logout" @click="logout" />
+        </div>
+        <div v-else class="row items-center q-gutter-sm">
+          <q-btn dense flat label="Login" @click="goLogin" />
+          <q-btn dense flat label="Sign up" @click="goSignup" />
+        </div>
+      </q-toolbar>
+    </q-header>
+    <q-page-container>
+      <div
+        class="layout-with-channels"
+        style="display: flex; height: calc(100vh - var(--q-header-height, 56px)); overflow: hidden"
+      >
+        <ChannelNavigation v-if="currentUser" />
+        <div style="flex: 1">
+          <router-view />
+        </div>
+      </div>
+    </q-page-container>
+  </q-layout>
 </template>
 
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
-import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router';
+import ChannelNavigation from 'src/components/ChannelNavigation.vue';
+import { useUserStore } from 'src/stores/user-store';
+import { storeToRefs } from 'pinia';
 
+const router = useRouter();
+const userStore = useUserStore();
+const { currentUser } = storeToRefs(userStore);
 
-const router = useRouter()
-const currentUser = ref<{ email?: string } | null>(null)
-
-function loadCurrentUser() {
-	try {
-		const raw = localStorage.getItem('frontend_current_user') || null
-		if (raw) currentUser.value = JSON.parse(raw)
-		else currentUser.value = null
-	} catch {
-		currentUser.value = null
-	}
+function goHome() {
+  void router.push('/');
 }
-
-onMounted(() => {
-	loadCurrentUser()
-	window.addEventListener('user-login', loadCurrentUser)
-})
-onUnmounted(() => {
-	window.removeEventListener('user-login', loadCurrentUser)
-})
-
-function goHome() { void router.push('/') }
-function goLogin() { void router.push('/login') }
-function goSignup() { void router.push('/signup') }
+function goLogin() {
+  void router.push('/login');
+}
+function goSignup() {
+  void router.push('/signup');
+}
 function logout() {
-	try { localStorage.removeItem('frontend_current_user') } catch {
-		console.error('Failed to remove frontend_current_user from localStorage')
-	}
-	try { sessionStorage.removeItem('frontend_current_user') } catch {
-		console.error('Failed to remove frontend_current_user from sessionStorage')
-	}
-	currentUser.value = null
-	void router.push('/login')
+  userStore.logout();
+  void router.push('/login');
 }
 </script>
 
 <style scoped>
 .q-toolbar-title {
-	user-select: none;
+  user-select: none;
 }
 </style>
