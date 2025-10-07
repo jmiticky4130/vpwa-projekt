@@ -14,7 +14,7 @@
 			</q-toolbar>
 		</q-header>
 		<q-page-container>
-			<div class="layout-with-channels" style="display:flex">
+			<div class="layout-with-channels" style="display:flex; height: calc(100vh - var(--q-header-height,56px)); overflow: hidden">
 				<ChannelNavigation v-if="currentUser" />
 				<div style="flex:1">
 					<router-view />
@@ -27,7 +27,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { ref, onMounted, onUnmounted } from 'vue'
-import ChannelNavigation from 'src/components/ChannelNavigation.vue'
 
 
 const router = useRouter()

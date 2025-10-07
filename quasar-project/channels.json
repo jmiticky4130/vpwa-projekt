@@ -8,5 +8,15 @@
   { "id": 7, "name": "ops", "public": false },
   { "id": 8, "name": "marketing", "public": true },
   { "id": 9, "name": "product", "public": false },
-  { "id": 10, "name": "ux-research", "public": true }
+  { "id": 10, "name": "ux-research", "public": true },
+  { "id": 11, "name": "general", "public": true },
+  { "id": 12, "name": "random", "public": true },
+  { "id": 13, "name": "dev", "public": false },
+  { "id": 14, "name": "design", "public": false },
+  { "id": 15, "name": "support", "public": true },
+  { "id": 16, "name": "announcements", "public": true },
+  { "id": 17, "name": "ops", "public": false },
+  { "id": 18, "name": "marketing", "public": true },
+  { "id": 19, "name": "product", "public": false },
+  { "id": 20, "name": "ux-research", "public": true }
 ]

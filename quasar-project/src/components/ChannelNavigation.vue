@@ -23,7 +23,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import channelsData from 'src/../channels.json'
 
 interface Channel {
@@ -46,12 +46,18 @@ const activeId = ref(String(firstId))
 .channel-nav {
   width: 220px;
   background: rgba(255,255,255,0.02);
-  height: 100vh;
-  border-right: 1px solid rgba(255,255,255,0.04);
+  --channel-nav-offset: var(--q-header-height, 56px);
+  position: sticky;
+  top: var(--channel-nav-offset);
+  height: calc(100vh - var(--channel-nav-offset));
+  overflow: visible;
 }
 .channel-tabs {
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  padding-top: 8px;
+  padding-top: 4px;
+  overflow: hidden; /* hide scrollbar until hover */
 }
 .channel-tab {
   text-transform: none;
@@ -61,7 +67,7 @@ const activeId = ref(String(firstId))
   margin: 6px;
 }
 .channel-tab.public {
-  background: rgba(255,255,255,0.045); /* light translucent */
+  background: rgba(255,255,255,0.045);
   color: rgba(255,255,255,0.92);
 }
 .channel-tab.private {

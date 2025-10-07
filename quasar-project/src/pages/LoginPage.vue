@@ -25,7 +25,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import usersData from 'src/../Users.json'
+import usersData from 'src/../users.json'
 
 const router = useRouter()
 
