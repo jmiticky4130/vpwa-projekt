@@ -1,0 +1,12 @@
+[
+  { "id": 1, "name": "general", "public": true },
+  { "id": 2, "name": "random", "public": true },
+  { "id": 3, "name": "dev", "public": false },
+  { "id": 4, "name": "design", "public": false },
+  { "id": 5, "name": "support", "public": true },
+  { "id": 6, "name": "announcements", "public": true },
+  { "id": 7, "name": "ops", "public": false },
+  { "id": 8, "name": "marketing", "public": true },
+  { "id": 9, "name": "product", "public": false },
+  { "id": 10, "name": "ux-research", "public": true }
+]

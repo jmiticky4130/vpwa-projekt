@@ -6,7 +6,6 @@ import {
   createWebHistory,
 } from 'vue-router';
 import routes from './routes';
-import { useAuthStore } from 'src/stores/auth-store';
 
 /*
  * If not building with SSR mode, you can
@@ -34,16 +33,21 @@ export default defineRouter(function (/* { store, ssrContext } */) {
     history: createHistory(process.env.VUE_ROUTER_BASE),
   });
 
-  Router.beforeEach(async (to) => {
-    const auth = useAuthStore();
-    // Try lazy load user if token exists and user missing
-    if (auth.token && !auth.user) {
-      await auth.fetchMe();
+  Router.beforeEach((to) => {
+    // Determine auth presence purely from frontend storage keys. This keeps
+    // the router independent from any backend auth store.
+    let frontendUserRaw: string | null = null
+    try {
+      frontendUserRaw = localStorage.getItem('frontend_current_user') || sessionStorage.getItem('frontend_current_user') || null
+    } catch {
+      try { frontendUserRaw = sessionStorage.getItem('frontend_current_user') || null } catch { frontendUserRaw = null }
     }
-    if (to.meta.requiresAuth && !auth.user) {
+    const frontendUser = !!frontendUserRaw
+
+    if (to.meta.requiresAuth && !frontendUser) {
       return { path: '/login', query: { redirect: to.fullPath } };
     }
-    if (to.meta.guestOnly && auth.user) {
+    if (to.meta.guestOnly && frontendUser) {
       return { path: '/' };
     }
     return true;
