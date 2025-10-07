@@ -55,8 +55,6 @@ async function api(path: string, options: RequestInit = {}) {
 }
 
 
-
-
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserShape | null>(null);
   const token = ref<string | null>(localStorage.getItem('auth_token'));
