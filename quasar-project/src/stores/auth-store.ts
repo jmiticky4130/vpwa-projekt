@@ -34,7 +34,6 @@ async function api(path: string, options: RequestInit = {}) {
   const res = await fetch(`/api${path}`, { ...options, headers });
 
   if (!res.ok) {
-    // Try to parse JSON
     const body = await res.json().catch(() => ({}));
     const message = body.message || 'Unknown error';
     throw new Error(message);
