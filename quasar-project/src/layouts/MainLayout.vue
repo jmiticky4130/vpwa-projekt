@@ -4,7 +4,7 @@
       <q-toolbar>
         <q-toolbar-title class="app-title text-weight-medium cursor-pointer" @click="goHome">
           <img class="title-gif" src="../assets/sili-cat.gif" alt="Silly cat" />
-          <span>Chatapp</span>
+          <span>ChatApp</span>
         </q-toolbar-title>
         <div v-if="currentUser" class="row items-center q-gutter-sm">
           <q-badge color="white" text-color="primary">{{ currentUser.email }}</q-badge>
