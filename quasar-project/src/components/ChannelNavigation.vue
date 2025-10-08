@@ -5,6 +5,7 @@
         vertical
         v-model="activeId"
         class="channel-tabs"
+        content-class="channel-tabs-content"
         dense
         active-color="primary"
       >
@@ -50,14 +51,25 @@ const activeId = ref(String(firstId))
   position: sticky;
   top: var(--channel-nav-offset);
   height: calc(100vh - var(--channel-nav-offset));
-  overflow: visible;
+  overflow: hidden;
 }
 .channel-tabs {
   display: flex;
   flex-direction: column;
   height: 100%;
   padding-top: 4px;
-  overflow: hidden; /* hide scrollbar until hover */
+  overflow: hidden;
+}
+
+:deep(.channel-tabs-content) {
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+:deep(.q-tabs__arrow) {
+  display: none !important;
 }
 .channel-tab {
   text-transform: none;

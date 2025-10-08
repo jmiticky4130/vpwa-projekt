@@ -2,9 +2,10 @@
   <q-layout view="lHh Lpr lFf" class="bg-dark">
     <q-header elevated class="bg-primary text-white">
       <q-toolbar>
-        <q-toolbar-title class="text-weight-medium cursor-pointer" @click="goHome"
-          >App</q-toolbar-title
-        >
+        <q-toolbar-title class="app-title text-weight-medium cursor-pointer" @click="goHome">
+          <img class="title-gif" src="../assets/sili-cat.gif" alt="Silly cat" />
+          <span>ChatApp</span>
+        </q-toolbar-title>
         <div v-if="currentUser" class="row items-center q-gutter-sm">
           <q-badge color="white" text-color="primary">{{ currentUser.email }}</q-badge>
           <q-btn dense flat icon="logout" @click="logout" />
@@ -57,5 +58,16 @@ function logout() {
 <style scoped>
 .q-toolbar-title {
   user-select: none;
+}
+.app-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.title-gif {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border-radius: 4px;
 }
 </style>
