@@ -8,23 +8,32 @@
         content-class="channel-tabs-content"
         dense
         active-color="primary"
+        @update:model-value="onSelect"
       >
         <q-tab
           v-for="ch in channels"
           :key="ch.id"
           :name="String(ch.id)"
-          :label="(ch.public ? '# ' : '🔒 ') + ch.name"
           :class="['channel-tab', { public: ch.public, private: !ch.public, active: String(ch.id) === activeId }]
           "
-        />
+        >
+          <div class="tab-content">
+            <q-badge :color="ch.public ? 'green-7' : 'deep-orange-6'" class="text-white channel-badge">
+              {{ ch.public ? 'Public' : 'Private' }}
+            </q-badge>
+            <span class="channel-name">{{ ch.name }}</span>
+          </div>
+        </q-tab>
       </q-tabs>
     </template>
     <div v-else class="no-channels q-pa-md text-caption text-grey-6">No channels available</div>
   </div>
+  
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import channelsData from 'src/../channels.json'
 
 interface Channel {
@@ -39,8 +48,39 @@ if (Array.isArray(channelsData)) {
   channels.value = channelsData as Channel[]
 }
 
-const firstId = channels.value[0]?.id ?? ''
-const activeId = ref(String(firstId))
+const router = useRouter()
+const route = useRoute()
+
+const getIdBySlug = (slug: string) => {
+  const found = channels.value.find((c) => c.name.toLowerCase() === slug.toLowerCase())
+  return found ? String(found.id) : ''
+}
+
+const getSlugById = (id: string) => {
+  const found = channels.value.find((c) => String(c.id) === id)
+  return found ? found.name : ''
+}
+
+// initialize active tab from route
+const initialSlug = String(route.params.slug || '')
+const initialId = initialSlug ? getIdBySlug(initialSlug) : String(channels.value[0]?.id ?? '')
+const activeId = ref(String(initialId))
+
+// keep active tab in sync when route changes externally
+watch(
+  () => route.params.slug,
+  (slug) => {
+    const id = slug ? getIdBySlug(String(slug)) : ''
+    if (id && id !== activeId.value) activeId.value = id
+  }
+)
+
+function onSelect(id: string) {
+  const slug = getSlugById(id)
+  if (slug) {
+    void router.push({ name: 'channel', params: { slug } })
+  }
+}
 </script>
 
 <style scoped>

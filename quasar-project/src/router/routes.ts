@@ -8,6 +8,12 @@ const routes: RouteRecordRaw[] = [
       { path: '', component: () => import('pages/IndexPage.vue'), meta: { requiresAuth: true } },
       { path: 'login', component: () => import('pages/LoginPage.vue'), meta: { guestOnly: true } },
       { path: 'signup', component: () => import('pages/SignupPage.vue'), meta: { guestOnly: true } },
+      {
+        path: 'channels/:slug',
+        name: 'channel',
+        component: () => import('pages/ChannelPage.vue'),
+        meta: { requiresAuth: true },
+      },
     ],
   },
 
