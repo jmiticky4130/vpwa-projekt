@@ -1,17 +1,27 @@
 <template>
   <div class="message-list" ref="listEl">
-    <q-chat-message
+    <div
       v-for="m in messages"
       :key="m.id"
-      :text="[m.text]"
-      :sent="m.sent"
-      :name="m.name"
-      :stamp="m.stamp"
-      text-color="white"
-      bg-color="transparent"
-      class="flat-message"
-      size="sm"
-    />
+      :class="['msg-row', { 'msg-row--own': isOwn(m) }]"
+    >
+      <!-- Author shown above message -->
+      <div class="msg-author" :aria-hidden="true">
+        {{ isOwn(m) ? 'You' : (m.name || 'Anonymous') }}
+      </div>
+
+      <q-chat-message
+        :text="[m.text]"
+        :sent="isOwn(m)"
+        :name="m.name"
+        :stamp="m.stamp"
+        text-color="white"
+        bg-color="transparent"
+        class="flat-message"
+        size="sm"
+        dense
+      />
+    </div>
   </div>
 </template>
 
@@ -26,8 +36,7 @@ type Message = {
   stamp?: string
 }
 
-const props = defineProps<{ channelKey: string }>()
-
+const props = defineProps<{ channelKey: string, currentUser: string }>()
 const messages = ref<Message[]>([])
 const listEl = ref<HTMLElement | null>(null)
 
@@ -39,7 +48,6 @@ function loadMessages() {
     if (raw) {
       messages.value = JSON.parse(raw) as Message[]
     } else {
-      // starter sample per channel on first load
       messages.value = [
         { id: `s-${Date.now()}-1`, text: `Welcome to #${props.channelKey}!`, sent: false, name: 'System', stamp: new Date().toLocaleTimeString() },
       ]
@@ -77,6 +85,13 @@ function appendMessage(text: string, opts?: Partial<Message>) {
   scrollToBottom()
 }
 
+function isOwn(m: Message) {
+  if (m.name && props.currentUser) {
+    return m.sent === true && m.name === props.currentUser
+  }
+  return m.sent === true
+}
+
 defineExpose({ appendMessage })
 
 onMounted(loadMessages)
@@ -85,27 +100,84 @@ watch(() => props.channelKey, () => loadMessages())
 
 <style scoped>
 .message-list {
-  flex: 1 1 auto;
-  min-height: 0; /* allow proper flexbox scrolling */
-  overflow-y: auto;
-  padding: 8px 0 16px 0;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;    /* vertical only */
+  overflow-x: hidden;  /* hide horizontal scrollbar */
+  padding: 8px 12px 16px 12px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-/* Flatten QChatMessage default bubbles */
-.flat-message :deep(.q-message-text) {
-  background: transparent !important;
-  border: 0 !important;
+.msg-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; 
+  max-width: 100%;
+}
+
+.msg-row--own {
+  align-items: flex-end;
+}
+
+.msg-author {
+  font-size: 12px;
+  line-height: 1;
+  margin-bottom: 4px;
+  color: rgba(255,255,255,0.65); 
+  user-select: none;
+  text-transform: none;
+}
+
+.msg-row--own .msg-author {
+  color: rgba(130, 220, 190, 0.95); 
+}
+
+.flat-message {
+  max-width: 75%; 
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.flat-message :deep(.q-message) {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  color: rgba(255,255,255,0.95);
+  padding: 6px 8px; 
+  border-radius: 8px;
+}
+
+.msg-row:not(.msg-row--own) .flat-message :deep(.q-message-text) {
+  background: rgba(255,255,255,0.04) !important;
+  border: 1px solid rgba(255,255,255,0.04) !important;
   box-shadow: none !important;
-  padding: 0 !important;
+  padding: 8px !important;
+  color: rgba(255,255,255,0.92);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
-.flat-message :deep(.q-message)
-{
-  color: rgba(255,255,255,0.9);
+
+.msg-row--own .flat-message :deep(.q-message-text) {
+  background: linear-gradient(135deg, rgba(38,198,218,0.16), rgba(0,188,212,0.12)) !important;
+  border: 1px solid rgba(38,198,218,0.16) !important;
+  box-shadow: none !important;
+  padding: 8px !important;
+  color: rgba(255,255,255,0.95);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
+
 .flat-message :deep(.q-message-stamp) {
-  color: rgba(255,255,255,0.6);
+  color: rgba(255,255,255,0.5);
+  font-size: 11px;
 }
 .flat-message :deep(.q-message-name) {
-  color: rgba(255,255,255,0.75);
+  display: none; /* hide q-chat-message's default name */
 }
 </style>
