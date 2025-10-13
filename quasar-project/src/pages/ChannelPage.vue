@@ -2,7 +2,7 @@
 	<q-page class="q-pa-md column" :style="pageStyle">
 		<div v-if="channel" class="row items-center q-gutter-sm full-width">
 			<q-badge :color="channel.public ? 'green-7' : 'deep-orange-6'" class="text-white">
-				{{ channel.public ? 'Public' : 'Private' }}
+				{{ channel.public ? 'Public channel' : 'Private channel' }}
 			</q-badge>
 			<h4 class="q-ma-none text-white"> {{ channel.name }}</h4>
 		</div>
