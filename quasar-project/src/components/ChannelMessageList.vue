@@ -1,75 +1,115 @@
 <template>
   <div class="message-list" ref="listEl">
-    <div
-      v-for="m in messages"
-      :key="m.id"
-      :class="['msg-row', { 'msg-row--own': isOwn(m) }]"
-    >
-      <!-- Author shown above message -->
-      <div class="msg-author" :aria-hidden="true">
-        {{ isOwn(m) ? 'You' : (m.name || 'Anonymous') }}
-      </div>
+    <q-infinite-scroll @load="loadMoreMessages" :offset="100" reverse scroll-target=".message-list" :key="props.channelKey">
+      <template v-slot:loading>
+        <div class="row justify-center q-my-md">
+          <q-spinner color="primary" name="dots" size="40px" />
+        </div>
+      </template>
+      <div v-for="m in currMessages" :key="m.id" :class="['msg-row', { 'msg-row--own': isOwn(m) }]">
+        <!-- Author shown above message -->
+        <div class="msg-author" :aria-hidden="true">
+          {{ isOwn(m) ? 'You' : m.name || 'Anonymous' }}
+        </div>
 
-      <q-chat-message
-        :text="[m.text]"
-        :sent="isOwn(m)"
-        :name="m.name"
-        :stamp="m.stamp"
-        text-color="white"
-        bg-color="transparent"
-        class="flat-message"
-        size="sm"
-        dense
-      />
-    </div>
+        <q-chat-message
+          :text="[m.text]"
+          :sent="isOwn(m)"
+          :name="m.name"
+          :stamp="m.stamp"
+          text-color="white"
+          bg-color="transparent"
+          class="flat-message"
+          size="sm"
+          dense
+        />
+      </div>
+    </q-infinite-scroll>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch, nextTick, defineExpose } from 'vue'
+import { ref, watch, nextTick, defineExpose, onMounted } from 'vue';
 
 type Message = {
-  id: string
-  text: string
-  sent?: boolean
-  name?: string
-  stamp?: string
-}
+  id: string;
+  text: string;
+  sent?: boolean;
+  name?: string;
+  stamp?: string;
+};
 
-const props = defineProps<{ channelKey: string, currentUser: string }>()
-const messages = ref<Message[]>([])
-const listEl = ref<HTMLElement | null>(null)
+const props = defineProps<{ channelKey: string; currentUser: string }>();
+const allMessages = ref<Message[]>([]);
+const currMessages = ref<Message[]>([]);
+const listEl = ref<HTMLElement | null>(null);
+const loadedCount = ref(0); 
+const BATCH_SIZE = 20;
 
-const storageKey = () => `chat:${props.channelKey}`
+const storageKey = () => `chat:${props.channelKey}`;
 
 function loadMessages() {
   try {
-    const raw = localStorage.getItem(storageKey())
+    const raw = localStorage.getItem(storageKey());
     if (raw) {
-      messages.value = JSON.parse(raw) as Message[]
+      allMessages.value = JSON.parse(raw) as Message[];
     } else {
-      messages.value = [
-        { id: `s-${Date.now()}-1`, text: `Welcome to #${props.channelKey}!`, sent: false, name: 'System', stamp: new Date().toLocaleTimeString() },
-      ]
-      persist()
+      allMessages.value = [
+        {
+          id: `s-${Date.now()}-1`,
+          text: `Welcome to #${props.channelKey}!`,
+          sent: false,
+          name: 'System',
+          stamp: new Date().toLocaleTimeString(),
+        },
+      ];
+      persist();
     }
   } catch {
-    messages.value = []
+    allMessages.value = [];
   }
-  scrollToBottom()
+  // reset paging and show the last batch
+  loadedCount.value = Math.min(BATCH_SIZE, allMessages.value.length);
+  currMessages.value = allMessages.value.slice(allMessages.value.length - loadedCount.value);
+  console.log("Loaded messages:", allMessages.value.length, "Showing:", loadedCount.value);
+  scrollToBottom();
+}
+
+function loadMoreMessages(index: number, done: (stop?: boolean) => void) {
+  console.log('Request to load more messages');
+  // Simulate async fetch delay; page older messages from allMessages
+  setTimeout(() => {
+    const remaining = allMessages.value.length - loadedCount.value;
+    if (remaining <= 0) {
+      console.log('No more messages to load');
+      done(true);
+      return;
+    }
+    console.log(`Loading more messages, ${remaining} remaining`);
+
+    const take = Math.min(BATCH_SIZE, remaining);
+    const start = allMessages.value.length - loadedCount.value - take;
+    const end = allMessages.value.length - loadedCount.value;
+    const older = allMessages.value.slice(Math.max(0, start), Math.max(0, end));
+
+    // Prepend older messages to current view without altering allMessages
+    currMessages.value = [...older, ...currMessages.value];
+    loadedCount.value += older.length;
+    done();
+  }, 1000);
 }
 
 function persist() {
-  localStorage.setItem(storageKey(), JSON.stringify(messages.value))
+  localStorage.setItem(storageKey(), JSON.stringify(allMessages.value));
 }
 
 function scrollToBottom() {
   void nextTick(() => {
-    const el = listEl.value
+    const el = listEl.value;
     if (el) {
-      el.scrollTop = el.scrollHeight
+      el.scrollTop = el.scrollHeight;
     }
-  })
+  });
 }
 
 function appendMessage(text: string, opts?: Partial<Message>) {
@@ -79,23 +119,33 @@ function appendMessage(text: string, opts?: Partial<Message>) {
     sent: true,
     stamp: new Date().toLocaleTimeString(),
     ...opts,
-  }
-  messages.value.push(msg)
-  persist()
-  scrollToBottom()
+  };
+  allMessages.value.push(msg);
+  // Also reflect in the currently visible window if we are showing the newest tail
+  currMessages.value = [...currMessages.value, msg];
+  loadedCount.value = Math.min(allMessages.value.length, loadedCount.value + 1);
+  persist();
+  scrollToBottom();
 }
 
 function isOwn(m: Message) {
   if (m.name && props.currentUser) {
-    return m.sent === true && m.name === props.currentUser
+    return m.sent === true && m.name === props.currentUser;
   }
-  return m.sent === true
+  return m.sent === true;
 }
 
-defineExpose({ appendMessage })
+defineExpose({ appendMessage });
 
-onMounted(loadMessages)
-watch(() => props.channelKey, () => loadMessages())
+onMounted(() => {
+  loadMessages();
+});
+
+watch(
+  () => props.channelKey,
+  () => loadMessages(),
+);
+
 </script>
 
 <style scoped>
@@ -103,19 +153,42 @@ watch(() => props.channelKey, () => loadMessages())
   flex: 1;
   min-height: 0;
   min-width: 0;
-  overflow-y: auto;    /* vertical only */
-  overflow-x: hidden;  /* hide horizontal scrollbar */
+  overflow-y: auto; /* vertical only */
+  overflow-x: hidden; /* hide horizontal scrollbar */
   padding: 8px 12px 16px 12px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Firefox nice scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(38, 198, 218, 0.45) transparent;
+}
+
+/* WebKit-based browsers (Chrome, Edge, Safari) */
+:deep(.message-list::-webkit-scrollbar) {
+  width: 10px;
+}
+:deep(.message-list::-webkit-scrollbar-track) {
+  background: transparent;
+}
+:deep(.message-list::-webkit-scrollbar-thumb) {
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(38,198,218,0.55), rgba(0,188,212,0.45));
+  border: 2px solid rgba(0,0,0,0); /* create padding for rounded look */
+  background-clip: padding-box;
+}
+:deep(.message-list:hover::-webkit-scrollbar-thumb) {
+  background: linear-gradient(180deg, rgba(38,198,218,0.75), rgba(0,188,212,0.65));
+}
+:deep(.message-list::-webkit-scrollbar-thumb:active) {
+  background: linear-gradient(180deg, rgba(38,198,218,0.95), rgba(0,188,212,0.85));
 }
 
 .msg-row {
   display: flex;
   flex-direction: column;
-  align-items: flex-start; 
+  align-items: flex-start;
   max-width: 100%;
 }
 
@@ -127,17 +200,17 @@ watch(() => props.channelKey, () => loadMessages())
   font-size: 12px;
   line-height: 1;
   margin-bottom: 4px;
-  color: rgba(255,255,255,0.65); 
+  color: rgba(255, 255, 255, 0.65);
   user-select: none;
   text-transform: none;
 }
 
 .msg-row--own .msg-author {
-  color: rgba(130, 220, 190, 0.95); 
+  color: rgba(130, 220, 190, 0.95);
 }
 
 .flat-message {
-  max-width: 75%; 
+  max-width: 75%;
   min-width: 0;
   box-sizing: border-box;
 }
@@ -146,35 +219,35 @@ watch(() => props.channelKey, () => loadMessages())
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  color: rgba(255,255,255,0.95);
-  padding: 6px 8px; 
+  color: rgba(255, 255, 255, 0.95);
+  padding: 6px 8px;
   border-radius: 8px;
 }
 
 .msg-row:not(.msg-row--own) .flat-message :deep(.q-message-text) {
-  background: rgba(255,255,255,0.04) !important;
-  border: 1px solid rgba(255,255,255,0.04) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
   box-shadow: none !important;
   padding: 8px !important;
-  color: rgba(255,255,255,0.92);
+  color: rgba(255, 255, 255, 0.92);
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 
 .msg-row--own .flat-message :deep(.q-message-text) {
-  background: linear-gradient(135deg, rgba(38,198,218,0.16), rgba(0,188,212,0.12)) !important;
-  border: 1px solid rgba(38,198,218,0.16) !important;
+  background: linear-gradient(135deg, rgba(38, 198, 218, 0.16), rgba(0, 188, 212, 0.12)) !important;
+  border: 1px solid rgba(38, 198, 218, 0.16) !important;
   box-shadow: none !important;
   padding: 8px !important;
-  color: rgba(255,255,255,0.95);
+  color: rgba(255, 255, 255, 0.95);
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 
 .flat-message :deep(.q-message-stamp) {
-  color: rgba(255,255,255,0.5);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 11px;
 }
 .flat-message :deep(.q-message-name) {

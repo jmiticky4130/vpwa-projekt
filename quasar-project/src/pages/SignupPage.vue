@@ -5,8 +5,9 @@
         <div class="text-h6">Create Account</div>
         <div class="text-caption text-grey-7">Sign up and you will be automatically logged in</div>
       </q-card-section>
-      <q-separator />
-      <q-card-section class="q-gutter-sm">
+  <q-separator />
+  <q-form @submit.prevent="submit" novalidate>
+  <q-card-section class="q-gutter-sm">
         <q-input
           v-model="form.nickname"
           label="Nickname"
@@ -58,13 +59,14 @@
           </template>
         </q-input>
         <q-btn
+          type="submit"
           color="primary"
           class="full-width"
           label="Sign up"
           :loading="loading"
-          @click="submit"
         />
         <q-btn
+          type="button"
           flat
           dense
           no-caps
@@ -74,6 +76,7 @@
         />
         <q-banner v-if="error" class="bg-red-2 text-red-10" rounded dense>{{ error }}</q-banner>
       </q-card-section>
+      </q-form>
     </q-card>
   </q-page>
 </template>
