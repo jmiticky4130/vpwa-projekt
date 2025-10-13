@@ -1,12 +1,12 @@
 <template>
-  <div class="channel-composer">
+  <div class="channel-text-field">
     <q-input
       v-model="message"
       :placeholder="placeholder"
       dense
       outlined
       autogrow
-      class="composer-input"
+      class="text-field-input"
       @keyup.enter.exact.prevent="onEnter"
     />
     <q-btn icon="send" color="primary" unelevated round size="sm" @click="submit" />
@@ -16,7 +16,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
-const props = defineProps<{ channelName?: string }>()
+const props = defineProps<{ channelName?: string}>()
 const emit = defineEmits<{ submit: [value: string] }>()
 
 const message = ref('')
@@ -35,7 +35,7 @@ function onEnter() {
 </script>
 
 <style scoped>
-.channel-composer {
+.channel-text-field {
   position: fixed;
   left: 220px; /* align with ChannelNavigation width */
   right: 0;
@@ -50,17 +50,17 @@ function onEnter() {
   gap: 8px;
   z-index: 1000;
 }
-.composer-input {
+.text-field-input {
   width: 100%; /* keep input compact and anchored left */
 }
-.composer-input :deep(textarea) {
+.text-field-input :deep(textarea) {
   font-size: 18px;
   color: rgba(255, 255, 255, 0.85);
   caret-color: rgba(255, 255, 255, 0.9);
   min-height: 48px;
   line-height: 1.4;
 }
-.composer-input :deep(textarea::placeholder) {
+.text-field-input :deep(textarea::placeholder) {
   color: rgba(255, 255, 255, 0.6);
 }
 </style>

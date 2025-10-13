@@ -21,13 +21,14 @@
 		</div>
 
     <!-- Message list occupies remaining space -->
-    <ChannelMessageList
-      v-if="channel"
-      ref="msgListRef"
-      :channel-key="channelKey"
-    />
+		<ChannelMessageList
+			v-if="channel"
+			ref="msgListRef"
+			:channel-key="channelKey"
+			:currentUser="currentUserDisplay"
+		/>
 
-		<ChannelComposer
+		<ChannelTextField
 			v-if="channel"
 			:channel-name="channel.name"
 			@submit="handleSubmit"
@@ -40,7 +41,7 @@
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import channelsData from 'src/../channels.json'
-import ChannelComposer from 'src/components/ChannelTextField.vue'
+import ChannelTextField from 'src/components/ChannelTextField.vue'
 import ChannelMessageList from 'src/components/ChannelMessageList.vue'
 import { useUserStore } from 'src/stores/user-store'
 import { storeToRefs } from 'pinia'
@@ -78,11 +79,13 @@ const channelKey = computed(() => (channel.value ? channel.value.name.toLowerCas
 // Access list methods
 const msgListRef = ref<InstanceType<typeof ChannelMessageList> | null>(null)
 
+// Current user display name (nickname fallback to email)
+const userStore = useUserStore()
+const { currentUser } = storeToRefs(userStore)
+const currentUserDisplay = computed(() => currentUser.value?.nickname || currentUser.value?.email || 'Anonymous')
+
 function appendToList(text: string) {
-	const userStore = useUserStore()
-	const { currentUser } = storeToRefs(userStore)
-	const displayName = currentUser.value?.nickname || currentUser.value?.email || 'Anonymous'
-	msgListRef.value?.appendMessage(text, { name: displayName, sent: true })
+	msgListRef.value?.appendMessage(text, { name: currentUserDisplay.value, sent: true })
 }
 
 // Hook submit to append
