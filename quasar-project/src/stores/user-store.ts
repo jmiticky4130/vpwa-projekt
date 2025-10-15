@@ -1,15 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import usersData from 'src/../users.json'
-
-export interface User {
-  id?: number
-  nickname?: string
-  firstName?: string
-  lastName?: string
-  email: string
-  password?: string
-}
+import type { User } from 'src/types/user'
 
 export const useUserStore = defineStore('user', () => {
   const currentUser = ref<User | null>(null)

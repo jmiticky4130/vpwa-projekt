@@ -35,12 +35,7 @@
 import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import channelsData from 'src/../channels.json'
-
-interface Channel {
-  id: number
-  name: string
-  public: boolean
-}
+import type { Channel } from 'src/types/channel'
 
 
 const channels = ref<Channel[]>([])

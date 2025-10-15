@@ -6,7 +6,7 @@
           <q-spinner color="primary" name="dots" size="40px" />
         </div>
       </template>
-      <div v-for="m in currMessages" :key="m.id" :class="['msg-row', { 'msg-row--own': isOwn(m) }]">
+      <div v-for="m in currMessages" :key="m.id" :class="['msg-row', { 'msg-row--own': isOwn(m) }, { 'msg-row--mention': isDirectedToCurrentUser(m) }]">
         <!-- Author shown above message -->
         <div class="msg-author" :aria-hidden="true">
           {{ isOwn(m) ? 'You' : m.name || 'Anonymous' }}
@@ -17,8 +17,8 @@
           :sent="isOwn(m)"
           :name="m.name"
           :stamp="m.stamp"
-          text-color="white"
           bg-color="transparent"
+          text-color="white"
           class="flat-message"
           size="sm"
           dense
@@ -77,7 +77,7 @@ function loadMessages() {
 
 function loadMoreMessages(index: number, done: (stop?: boolean) => void) {
   console.log('Request to load more messages');
-  // Simulate async fetch delay; page older messages from allMessages
+  // Simulate async fetch delay
   setTimeout(() => {
     const remaining = allMessages.value.length - loadedCount.value;
     if (remaining <= 0) {
@@ -135,6 +135,15 @@ function isOwn(m: Message) {
   return m.sent === true;
 }
 
+
+function isDirectedToCurrentUser(m: Message) {
+  if (m.text && props.currentUser) {
+    const mention = `@${props.currentUser}`;
+    return m.text.includes(mention);
+  }
+  return false;
+}
+
 defineExpose({ appendMessage });
 
 onMounted(() => {
@@ -149,47 +158,31 @@ watch(
 </script>
 
 <style scoped>
+
+.message-list::-webkit-scrollbar { width: 10px; background-color: black; }
+.message-list::-webkit-scrollbar-thumb { background: #286eb5; border-radius: 6px; }
+
 .message-list {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  overflow-y: auto; /* vertical only */
-  overflow-x: hidden; /* hide horizontal scrollbar */
-  padding: 8px 12px 16px 12px;
-  box-sizing: border-box;
+  --own-bg: rgba(0, 150, 200, 0.18);
+  --own-border: rgba(0, 150, 200, 0.5);
+  --incoming-bg: rgba(255, 255, 255, 0.04); 
+  --incoming-border: rgba(255,255,255,0.06);
+  --mention-border: #7e0000;
   display: flex;
+  
   flex-direction: column;
   gap: 10px;
-  /* Firefox nice scrollbar */
-  scrollbar-width: thin;
-  scrollbar-color: rgba(38, 198, 218, 0.45) transparent;
-}
-
-/* WebKit-based browsers (Chrome, Edge, Safari) */
-:deep(.message-list::-webkit-scrollbar) {
-  width: 10px;
-}
-:deep(.message-list::-webkit-scrollbar-track) {
-  background: transparent;
-}
-:deep(.message-list::-webkit-scrollbar-thumb) {
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(38,198,218,0.55), rgba(0,188,212,0.45));
-  border: 2px solid rgba(0,0,0,0); /* create padding for rounded look */
-  background-clip: padding-box;
-}
-:deep(.message-list:hover::-webkit-scrollbar-thumb) {
-  background: linear-gradient(180deg, rgba(38,198,218,0.75), rgba(0,188,212,0.65));
-}
-:deep(.message-list::-webkit-scrollbar-thumb:active) {
-  background: linear-gradient(180deg, rgba(38,198,218,0.95), rgba(0,188,212,0.85));
+  flex: 1;
+  min-height: 0;
+  padding: 8px 12px 16px;
+  box-sizing: border-box;
+  overflow-y: auto; 
 }
 
 .msg-row {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  max-width: 100%;
+  align-items: flex-start; 
 }
 
 .msg-row--own {
@@ -198,59 +191,54 @@ watch(
 
 .msg-author {
   font-size: 12px;
-  line-height: 1;
   margin-bottom: 4px;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255,255,255,0.65);
   user-select: none;
-  text-transform: none;
 }
 
 .msg-row--own .msg-author {
-  color: rgba(130, 220, 190, 0.95);
+  color: rgba(130,220,190,0.95);
 }
 
 .flat-message {
   max-width: 75%;
   min-width: 0;
   box-sizing: border-box;
+  position: relative;
 }
 
-.flat-message :deep(.q-message) {
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-  color: rgba(255, 255, 255, 0.95);
-  padding: 6px 8px;
+.flat-message :deep(.q-message-text) {
+  padding: 8px;
   border-radius: 8px;
+  border: 1px solid transparent;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  box-shadow: none;
 }
 
 .msg-row:not(.msg-row--own) .flat-message :deep(.q-message-text) {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid rgba(255, 255, 255, 0.04) !important;
-  box-shadow: none !important;
-  padding: 8px !important;
-  color: rgba(255, 255, 255, 0.92);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  background: var(--incoming-bg);
+  border-color: var(--incoming-border);
 }
 
+
 .msg-row--own .flat-message :deep(.q-message-text) {
-  background: linear-gradient(135deg, rgba(38, 198, 218, 0.16), rgba(0, 188, 212, 0.12)) !important;
-  border: 1px solid rgba(38, 198, 218, 0.16) !important;
-  box-shadow: none !important;
-  padding: 8px !important;
-  color: rgba(255, 255, 255, 0.95);
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  background: var(--own-bg);
+  border-color: var(--own-border);
+}
+
+.msg-row--mention .flat-message :deep(.q-message-text) {
+  border-color: var(--mention-border) !important;
+}
+
+
+.flat-message :deep(.q-message-name) {
+  display: none;
 }
 
 .flat-message :deep(.q-message-stamp) {
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255,255,255,0.5);
   font-size: 11px;
-}
-.flat-message :deep(.q-message-name) {
-  display: none; /* hide q-chat-message's default name */
 }
 </style>

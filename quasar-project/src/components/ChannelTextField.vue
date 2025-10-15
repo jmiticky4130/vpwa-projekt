@@ -20,7 +20,7 @@ const props = defineProps<{ channelName?: string}>()
 const emit = defineEmits<{ submit: [value: string] }>()
 
 const message = ref('')
-const placeholder = computed(() => props.channelName ? `Message #${props.channelName}` : 'Message')
+const placeholder = computed(() => `Message #${props.channelName}`)
 
 function submit() {
   const value = message.value.trim()
