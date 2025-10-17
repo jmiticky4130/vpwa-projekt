@@ -22,6 +22,12 @@ export const useUserStore = defineStore('user', () => {
     clearCurrentUser()
   }
 
+  function setStatus(status: 'online' | 'dnd' | 'offline') {
+    if (currentUser.value) {
+      currentUser.value.status = status
+    }
+  }
+
   function findByEmail(email: string): User | undefined {
     return users.value.find((u) => u.email === email)
   }
@@ -40,6 +46,7 @@ export const useUserStore = defineStore('user', () => {
     setCurrentUser,
     clearCurrentUser,
     logout,
+    setStatus,
     findByEmail,
     createUser,
   }

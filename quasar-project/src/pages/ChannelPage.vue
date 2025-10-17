@@ -6,6 +6,10 @@
           <q-badge :color="channel.public ? 'green-7' : 'deep-orange-6'" class="text-white">
             {{ channel.public ? 'Public channel' : 'Private channel' }}
           </q-badge>
+          <q-badge v-if="channelCreatorLabel" color="indigo-6" class="text-white">
+            Creator: {{ channelCreatorLabel }}
+          </q-badge>
+          
           <q-btn @click="onNotify" color="primary" label="Notify" dense flat class="q-ml-xs" />
           <h4 class="q-ma-none text-white ellipsis">{{ channel.name }}</h4>
         </header>
@@ -26,32 +30,35 @@
       <h5 class="q-ma-none text-negative">Channel not found</h5>
       <q-btn color="primary" label="Back to home" :to="{ path: '/' }" />
     </div>
-    <ChannelTextField v-if="channel" :channel-name="channel.name" @submit="handleSubmit" />
+    <ChannelTextField
+      v-if="channel"
+      :channel-name="channel.name"
+      @submit="handleSubmit"
+    />
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import channelsData from 'src/../channels.json';
 import ChannelTextField from 'src/components/ChannelTextField.vue';
 import ChannelMessageList from 'src/components/ChannelMessageList.vue';
 import UserList from 'src/components/UserList.vue';
 import { useUserStore } from 'src/stores/user-store';
 import { storeToRefs } from 'pinia';
 import { useNotify } from 'src/util/notification';
+import { useChannelStore } from 'src/stores/channel-store';
 import type { Channel } from 'src/types/channel';
+ 
 
-const { notify } = useNotify();
-
+const { notifyMessage } = useNotify();
 const route = useRoute();
-
-const allChannels = Array.isArray(channelsData) ? (channelsData as Channel[]) : [];
+const channelStore = useChannelStore();
 
 // find by slug (name)
 const channel = computed<Channel | undefined>(() => {
   const slug = String(route.params.slug || '').toLowerCase();
-  return allChannels.find((c) => c.name.toLowerCase() === slug);
+  return channelStore.channels.find((c) => c.name.toLowerCase() === slug);
 });
 
 // Channel key for storage (based on slug/name)
@@ -61,7 +68,7 @@ const channelKey = computed(() => (channel.value ? channel.value.name.toLowerCas
 const msgListRef = ref<InstanceType<typeof ChannelMessageList> | null>(null);
 
 function onNotify() {
-  notify('Hello this is a test notification', channel.value?.name || '', currentUserDisplay.value);
+  notifyMessage('Hello this is a test notification', channel.value?.name || '', currentUserDisplay.value);
 }
 
 // Current user display name (nickname fallback to email)
@@ -69,6 +76,13 @@ const userStore = useUserStore();
 const { currentUser } = storeToRefs(userStore);
 const currentUserDisplay = computed(() => currentUser.value?.nickname || 'Anonymous');
 const currentUserEmail = computed(() => currentUser.value?.email || '');
+const channelCreatorLabel = computed(() => {
+  const ch = channel.value
+  if (!ch || ch.creatorId == null) return ''
+  const creator = userStore.users.find((u) => u.id === ch.creatorId)
+  return creator?.nickname || creator?.email || String(ch.creatorId)
+})
+
 
 // all users from user store (dummy in-memory)
 const users = computed(() => userStore.users);
@@ -81,6 +95,8 @@ function appendToList(text: string) {
 function handleSubmit(value: string) {
   appendToList(value);
 }
+
+
 </script>
 
 <style scoped>

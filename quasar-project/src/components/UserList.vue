@@ -2,7 +2,7 @@
   <div class="user-list-wrapper bg-grey-10">
     <q-list bordered class="rounded-borders user-list">
       <q-item-label header>Users ({{ users.length }})</q-item-label>
-      <q-item v-for="u in users" :key="u.id || u.email" >
+      <q-item v-for="u in users" :key="u.id || u.email">
         <q-item-section>
           <q-item-label class="text-grey-4">
             {{ u.nickname }} <span v-if="isCurrent(u)" class="you-pill">(you)</span>
@@ -10,10 +10,7 @@
           <q-item-label caption class="text-grey-6 ellipsis">{{ u.email }}</q-item-label>
         </q-item-section>
         <q-item-section side>
-          <q-badge
-            :color="isCurrent(u) ? 'green-6' : 'grey-7'"
-            :label="isCurrent(u) ? 'online' : 'offline'"
-          />
+          <q-badge :color="colorFor(statusOf(u))" :label="statusOf(u)" />
         </q-item-section>
       </q-item>
       <div v-if="!users.length" class="empty text-grey-6 q-pa-sm">No users</div>
@@ -22,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+
 import type { User } from 'src/types/user';
 
 const props = defineProps<{ users: User[]; currentUserEmail?: string }>();
@@ -31,7 +28,16 @@ function isCurrent(u: User) {
   return !!props.currentUserEmail && u.email === props.currentUserEmail;
 }
 
-defineExpose({ count: computed(() => props.users.length) });
+function statusOf(u: User): 'online' | 'dnd' | 'offline' {
+  return u.status ?? 'offline';
+}
+
+function colorFor(s: 'online' | 'dnd' | 'offline') {
+  if (s === 'online') return 'green-6';
+  if (s === 'dnd') return 'red-6';
+  return 'grey-7';
+}
+
 </script>
 
 <style scoped>

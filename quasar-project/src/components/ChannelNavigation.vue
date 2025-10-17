@@ -32,27 +32,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import channelsData from 'src/../channels.json'
 import type { Channel } from 'src/types/channel'
+import { useChannelStore } from 'src/stores/channel-store'
 
-
-const channels = ref<Channel[]>([])
-if (Array.isArray(channelsData)) {
-  channels.value = channelsData as Channel[]
-}
+const channelStore = useChannelStore()
+const channels = computed<Channel[]>(() => channelStore.list())
 
 const router = useRouter()
 const route = useRoute()
 
 const getIdBySlug = (slug: string) => {
-  const found = channels.value.find((c) => c.name.toLowerCase() === slug.toLowerCase())
+  const found = channels.value.find((c: Channel) => c.name.toLowerCase() === slug.toLowerCase())
   return found ? String(found.id) : ''
 }
 
 const getSlugById = (id: string) => {
-  const found = channels.value.find((c) => String(c.id) === id)
+  const found = channels.value.find((c: Channel) => String(c.id) === id)
   return found ? found.name : ''
 }
 
@@ -87,6 +84,7 @@ function onSelect(id: string) {
   top: var(--channel-nav-offset);
   height: calc(100vh - var(--channel-nav-offset));
   overflow: hidden;
+  padding-bottom: 54px;
 }
 .channel-tabs {
   display: flex;
