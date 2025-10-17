@@ -21,7 +21,10 @@
         class="layout-with-channels"
         style="display: flex; height: calc(100vh - var(--q-header-height, 56px)); overflow: hidden"
       >
-        <ChannelNavigation v-if="currentUser" />
+      <div style="position: relative">
+          <ChannelNavigation v-if="currentUser" />
+          <UserStatusBar v-if="currentUser"/>
+        </div>
         <div style="flex: 1">
           <router-view />
         </div>
@@ -33,6 +36,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import ChannelNavigation from 'src/components/ChannelNavigation.vue';
+import UserStatusBar from 'src/components/UserStatusBar.vue';
 import { useUserStore } from 'src/stores/user-store';
 import { storeToRefs } from 'pinia';
 

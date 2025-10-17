@@ -29,7 +29,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, defineExpose, onMounted } from 'vue';
+import { ref, watch, nextTick, defineExpose, onMounted, computed } from 'vue';
+import { useUserStore } from 'src/stores/user-store'
+import { storeToRefs } from 'pinia'
 
 type Message = {
   id: string;
@@ -45,6 +47,10 @@ const currMessages = ref<Message[]>([]);
 const listEl = ref<HTMLElement | null>(null);
 const loadedCount = ref(0); 
 const BATCH_SIZE = 20;
+
+const userStore = useUserStore()
+const { currentUser: cu } = storeToRefs(userStore)
+const userStatus = computed<'online' | 'dnd' | 'offline'>(() => cu.value?.status ?? 'online')
 
 const storageKey = () => `chat:${props.channelKey}`;
 
@@ -68,15 +74,19 @@ function loadMessages() {
   } catch {
     allMessages.value = [];
   }
-  // reset paging and show the last batch
+  // reset paging; keep showing existing messages even when offline
   loadedCount.value = Math.min(BATCH_SIZE, allMessages.value.length);
-  currMessages.value = allMessages.value.slice(allMessages.value.length - loadedCount.value);
+    currMessages.value = allMessages.value.slice(allMessages.value.length - loadedCount.value);
   console.log("Loaded messages:", allMessages.value.length, "Showing:", loadedCount.value);
   scrollToBottom();
 }
 
 function loadMoreMessages(index: number, done: (stop?: boolean) => void) {
   console.log('Request to load more messages');
+  if (userStatus.value === 'offline') {
+    done(true)
+    return
+  }
   // Simulate async fetch delay
   setTimeout(() => {
     const remaining = allMessages.value.length - loadedCount.value;
@@ -121,11 +131,13 @@ function appendMessage(text: string, opts?: Partial<Message>) {
     ...opts,
   };
   allMessages.value.push(msg);
-  // Also reflect in the currently visible window if we are showing the newest tail
-  currMessages.value = [...currMessages.value, msg];
-  loadedCount.value = Math.min(allMessages.value.length, loadedCount.value + 1);
+  /*const isOwn = msg.sent === true && (!!msg.name && msg.name === props.currentUser)*/ // NOT YET NEEDED
+  if (userStatus.value !== 'offline' /*|| isOwn*/) {
+    currMessages.value = [...currMessages.value, msg];
+    loadedCount.value = Math.min(allMessages.value.length, loadedCount.value + 1);
+    scrollToBottom();
+  }
   persist();
-  scrollToBottom();
 }
 
 function isOwn(m: Message) {
@@ -154,6 +166,15 @@ watch(
   () => props.channelKey,
   () => loadMessages(),
 );
+
+watch(
+  () => userStatus.value,
+  (next) => {
+    if (next === 'online') {
+      loadMessages()
+    }
+  }
+)
 
 </script>
 
