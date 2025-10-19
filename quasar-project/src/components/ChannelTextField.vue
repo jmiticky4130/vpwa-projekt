@@ -24,11 +24,32 @@ import type { Channel } from 'src/types/channel'
 
 const props = defineProps<{ channelName?: string }>()
 const emit = defineEmits<{ submit: [value: string] }>()
-
 const message = ref('')
 const placeholder = computed(() => `Message #${props.channelName}`)
+const router = useRouter()
+const channelStore = useChannelStore()
+const userStore = useUserStore()
+const { currentUser } = storeToRefs(userStore)
+const {
+  notifyJoinedChannel,
+  notifyAlreadyMember,
+  notifyPrivateChannelBlocked,
+  notifyChannelCreated,
+  notifyCreatorOnlyPrivacy,
+  notifyChannelAlreadyState,
+  notifyChannelPrivacyUpdated,
+  notifyChannelDeleted,
+  notifyLeftChannel,
+  notifyInviteSuccess,
+  notifyRevokeSuccess,
+  notifyInviteNotAllowedPrivate,
+  notifyRevokeNotCreator,
+  notifyUserNotFound,
+  notifyAlreadyInChannel,
+  notifyNotInChannel,
+} = useNotify()
 
-type Command = { name: 'join' | 'public' | 'private' | 'quit' | 'cancel'; args: string[] }
+type Command = { name: 'join' | 'public' | 'private' | 'quit' | 'cancel' | 'invite' | 'revoke'; args: string[] }
 
 function tryParseCommand(value: string): Command | null {
   if (!value.startsWith('/')) return null
@@ -55,23 +76,17 @@ function tryParseCommand(value: string): Command | null {
   if (cmdName === 'cancel') {
     return { name: 'cancel', args: [] as string[] }
   }
+  if (cmdName === 'invite') {
+    const arg = parts.slice(1).join(' ').trim()
+    if (arg) return { name: 'invite', args: [arg] }
+  }
+  if (cmdName === 'revoke') {
+    const arg = parts.slice(1).join(' ').trim()
+    if (arg) return { name: 'revoke', args: [arg] }
+  }
   return null
 }
 
-const router = useRouter()
-const channelStore = useChannelStore()
-const userStore = useUserStore()
-const { currentUser } = storeToRefs(userStore)
-const {
-  notifyJoinedChannel,
-  notifyPrivateChannelBlocked,
-  notifyChannelCreated,
-  notifyCreatorOnlyPrivacy,
-  notifyChannelAlreadyState,
-  notifyChannelPrivacyUpdated,
-  notifyChannelDeleted,
-  notifyLeftChannel,
-} = useNotify()
 
 async function handleCommand(cmd: Command) {
   if (cmd.name === 'join') {
@@ -81,7 +96,20 @@ async function handleCommand(cmd: Command) {
 
     const ch = channelStore.findByName(targetName)
     if (ch) {
+      const uid = currentUser.value?.id
+      const isMember = uid != null && Array.isArray(ch.members) && ch.members.includes(uid)
+      if (isMember) {
+        await router.push({ name: 'channel', params: { slug: ch.name } })
+        notifyAlreadyMember(ch.name)
+        return
+      }
       if (ch.public) {
+        // ensure current user becomes a member when joining a public channel
+        if (uid != null) {
+          channelStore.addMember(ch.name, uid)
+          // mark as new for this user so it floats to top -- NOT NEEDED
+          // userStore.addNewChannel(uid, ch.name)
+        }
         await router.push({ name: 'channel', params: { slug: ch.name } })
         notifyJoinedChannel(ch.name)
       } else {
@@ -94,10 +122,16 @@ async function handleCommand(cmd: Command) {
     const payload: Channel = {
       id: 0,
       name: targetName,
-      public: true,
+      public: false,
       creatorId,
+      members: [creatorId],
     }
     const created = channelStore.addChannel(payload)
+
+    const uid = currentUser.value?.id
+    if (uid != null) {
+      channelStore.addMember(created.name, uid)
+    }
     await router.push({ name: 'channel', params: { slug: created.name } })
     notifyChannelCreated(created.name, created.public ? 'public' : 'private')
     return
@@ -122,15 +156,74 @@ async function handleCommand(cmd: Command) {
     return
   }
 
+  if (cmd.name === 'invite' || cmd.name === 'revoke') {
+    const currentName = props.channelName || ''
+    if (!currentName) return
+    const ch = channelStore.findByName(currentName)
+    if (!ch) return
+    const isCreator = currentUser.value?.id === ch.creatorId
+    // For invite: allow if public OR creator; For revoke: only creator
+    if (cmd.name === 'invite' && !ch.public && !isCreator) {
+      notifyInviteNotAllowedPrivate()
+      return
+    }
+    if (cmd.name === 'revoke' && !isCreator) {
+      notifyRevokeNotCreator()
+      return
+    }
+    const identifierRaw = cmd.args.join(' ').trim()
+    const identifier = identifierRaw.replace(/^@/, '')
+    const target = userStore.users.find((u) => u.nickname?.toLowerCase() === identifier.toLowerCase() || u.email.toLowerCase() === identifier.toLowerCase())
+    if (!target || target.id == null) {
+      notifyUserNotFound(identifier)
+      return
+    }
+    const isMember = Array.isArray(ch.members) && ch.members.includes(target.id)
+    if (cmd.name === 'invite') {
+      if (isMember) {
+        notifyAlreadyInChannel(target.nickname || target.email, ch.name)
+        return
+      }
+  channelStore.addMember(ch.name, target.id)
+  // Mark as new for target user so it floats to top
+  userStore.addNewChannel(target.id, ch.name)
+      notifyInviteSuccess(target.nickname || target.email, ch.name)
+      return
+    } else {
+      if (!isMember) {
+        notifyNotInChannel(target.nickname || target.email, ch.name)
+        return
+      }
+      // prevent creator from revoking themselves by mistake
+      if (target.id === ch.creatorId) {
+        notifyNotInChannel(target.nickname || target.email, ch.name)
+        return
+      }
+      channelStore.removeMember(ch.name, target.id)
+      notifyRevokeSuccess(target.nickname || target.email, ch.name)
+      return
+    }
+  }
+
   if (cmd.name === 'quit' || cmd.name === 'cancel') {
     const currentName = props.channelName || ''
     if (!currentName) return
     const ch = channelStore.findByName(currentName)
   const isCreator = currentUser.value?.id != null && ch?.creatorId === currentUser.value.id
     if (isCreator) {
+      // Remove stored messages for this channel as well
+      try {
+        const slug = currentName.toLowerCase()
+        localStorage.removeItem(`chat:${slug}`)
+      } catch {
+        console.log('Failed to remove channel messages from storage')
+      }
+      channelStore.removeChannel(currentName)
       notifyChannelDeleted(currentName)
       await router.push({ path: '/' })
     } else {
+      const uid = currentUser.value?.id
+      if (uid != null) channelStore.removeMember(currentName, uid)
       notifyLeftChannel(currentName)
       await router.push({ path: '/' })
     }

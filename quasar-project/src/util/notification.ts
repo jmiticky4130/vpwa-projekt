@@ -54,6 +54,11 @@ export function useNotify() {
     if (!shouldNotify()) return;
     $q.notify({ type: 'positive', message: `Joined #${name}` });
   }
+
+  function notifyAlreadyMember(name: string) {
+    if (!shouldNotify()) return;
+    $q.notify({ type: 'info', message: `You are already a member in channel #${name}` });
+  }
   
   function notifyPrivateChannelBlocked(name: string) {
     if (!shouldNotify()) return;
@@ -95,9 +100,45 @@ export function useNotify() {
     if (!shouldNotify()) return;
     $q.notify({ type: 'info', message: `You left #${name}` });
   }
+
+  function notifyInviteSuccess(target: string, channel: string) {
+    if (!shouldNotify()) return;
+    $q.notify({ type: 'positive', message: `Invited @${target} to #${channel}` });
+  }
+
+  function notifyRevokeSuccess(target: string, channel: string) {
+    if (!shouldNotify()) return;
+    $q.notify({ type: 'warning', message: `Removed @${target} from #${channel}` });
+  }
+
+  function notifyInviteNotAllowedPrivate() {
+    if (!shouldNotify()) return;
+    $q.notify({ type: 'warning', message: 'Only the channel creator can invite to a private channel.' });
+  }
+
+  function notifyRevokeNotCreator() {
+    if (!shouldNotify()) return;
+    $q.notify({ type: 'warning', message: 'Only the channel creator can revoke members.' });
+  }
+
+  function notifyUserNotFound(identifier: string) {
+    if (!shouldNotify()) return;
+    $q.notify({ type: 'negative', message: `User '${identifier}' not found.` });
+  }
+
+  function notifyAlreadyInChannel(target: string, channel: string) {
+    if (!shouldNotify()) return;
+    $q.notify({ type: 'info', message: `@${target} is already in #${channel}` });
+  }
+
+  function notifyNotInChannel(target: string, channel: string) {
+    if (!shouldNotify()) return;
+    $q.notify({ type: 'info', message: `@${target} is not a member of #${channel}` });
+  }
   
   return {
     notifyJoinedChannel,
+    notifyAlreadyMember,
     notifyPrivateChannelBlocked,
     notifyChannelCreated,
     notifyCreatorOnlyPrivacy,
@@ -105,6 +146,13 @@ export function useNotify() {
     notifyChannelPrivacyUpdated,
     notifyChannelDeleted,
     notifyLeftChannel,
+    notifyInviteSuccess,
+    notifyRevokeSuccess,
+    notifyInviteNotAllowedPrivate,
+    notifyRevokeNotCreator,
+    notifyUserNotFound,
+    notifyAlreadyInChannel,
+    notifyNotInChannel,
     notifyMessage,
   };
 }

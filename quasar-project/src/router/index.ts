@@ -7,6 +7,7 @@ import {
 } from 'vue-router';
 import routes from './routes';
 import { useUserStore } from 'src/stores/user-store';
+import { useChannelStore } from 'src/stores/channel-store';
 
 /*
  * If not building with SSR mode, you can
@@ -44,6 +45,21 @@ export default defineRouter(function ({ store /*, ssrContext */ }) {
     }
     if (to.meta.guestOnly && isAuthenticated) {
       return { path: '/' };
+    }
+
+    // Channel membership enforcement: only members can access specific channels
+    if (to.name === 'channel') {
+      const channelStore = useChannelStore(store)
+      const slug = String(to.params.slug || '').toLowerCase()
+      const ch = channelStore.findByName(slug)
+      // If channel exists, ensure current user is a member
+      if (ch) {
+        const uid = userStore.currentUser?.id
+        const members = Array.isArray(ch.members) ? ch.members : []
+        if (uid == null || !members.includes(uid)) {
+          return { path: '/' }
+        }
+      }
     }
     return true;
   });

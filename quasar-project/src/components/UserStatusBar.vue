@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeMount } from 'vue'
 import { useUserStore } from 'src/stores/user-store'
 import { storeToRefs } from 'pinia'
 
@@ -37,15 +37,20 @@ const { currentUser } = storeToRefs(userStore)
 
 const status = computed(() => currentUser.value?.status ?? 'online')
 
-function set(next: 'online' | 'dnd' | 'offline') {
-	userStore.setStatus(next)
+function set(status: 'online' | 'dnd' | 'offline') {
+	userStore.setStatus(status)
 }
 
 function colorFor(s: 'online' | 'dnd' | 'offline') {
-	if (s === 'online') return 'green-6'
+	if (s === 'offline') return 'grey-6'
 	if (s === 'dnd') return 'red-6'
-	return 'grey-6'
+	return 'green-6'
 }
+
+onBeforeMount(() => {
+	userStore.setStatus('online')
+})
+
 </script>
 
 <style scoped>

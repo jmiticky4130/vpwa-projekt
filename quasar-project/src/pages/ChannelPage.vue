@@ -9,7 +9,6 @@
           <q-badge v-if="channelCreatorLabel" color="indigo-6" class="text-white">
             Creator: {{ channelCreatorLabel }}
           </q-badge>
-          
           <q-btn @click="onNotify" color="primary" label="Notify" dense flat class="q-ml-xs" />
           <h4 class="q-ma-none text-white ellipsis">{{ channel.name }}</h4>
         </header>
@@ -24,11 +23,11 @@
           />
         </div>
       </div>
-      <UserList class="user-list-panel" :users="users" :current-user-email="currentUserEmail" />
-    </div>
-    <div v-else class="column items-start q-gutter-sm">
-      <h5 class="q-ma-none text-negative">Channel not found</h5>
-      <q-btn color="primary" label="Back to home" :to="{ path: '/' }" />
+      <UserList
+        class="user-list-panel"
+        :users="channelUsers"
+        :current-user-email="currentUserEmail"
+      />
     </div>
     <ChannelTextField
       v-if="channel"
@@ -49,7 +48,6 @@ import { storeToRefs } from 'pinia';
 import { useNotify } from 'src/util/notification';
 import { useChannelStore } from 'src/stores/channel-store';
 import type { Channel } from 'src/types/channel';
- 
 
 const { notifyMessage } = useNotify();
 const route = useRoute();
@@ -68,7 +66,11 @@ const channelKey = computed(() => (channel.value ? channel.value.name.toLowerCas
 const msgListRef = ref<InstanceType<typeof ChannelMessageList> | null>(null);
 
 function onNotify() {
-  notifyMessage('Hello this is a test notification', channel.value?.name || '', currentUserDisplay.value);
+  notifyMessage(
+    'Hello this is a test notification',
+    channel.value?.name || '',
+    currentUserDisplay.value,
+  );
 }
 
 // Current user display name (nickname fallback to email)
@@ -76,16 +78,21 @@ const userStore = useUserStore();
 const { currentUser } = storeToRefs(userStore);
 const currentUserDisplay = computed(() => currentUser.value?.nickname || 'Anonymous');
 const currentUserEmail = computed(() => currentUser.value?.email || '');
+
 const channelCreatorLabel = computed(() => {
-  const ch = channel.value
-  if (!ch || ch.creatorId == null) return ''
-  const creator = userStore.users.find((u) => u.id === ch.creatorId)
-  return creator?.nickname || creator?.email || String(ch.creatorId)
-})
+  const ch = channel.value;
+  if (!ch || ch.creatorId == null) return '';
+  const creator = userStore.users.find((u) => u.id === ch.creatorId);
+  return creator?.nickname || creator?.email || String(ch.creatorId);
+});
 
-
-// all users from user store (dummy in-memory)
-const users = computed(() => userStore.users);
+// Only users who are members of this channel
+const channelUsers = computed(() => {
+  const ch = channel.value;
+  if (!ch) return [];
+  const ids = Array.isArray(ch.members) ? ch.members : [];
+  return userStore.users.filter((u) => ids.includes(u.id ?? -1));
+});
 
 function appendToList(text: string) {
   msgListRef.value?.appendMessage(text, { name: currentUserDisplay.value, sent: true });
@@ -95,8 +102,6 @@ function appendToList(text: string) {
 function handleSubmit(value: string) {
   appendToList(value);
 }
-
-
 </script>
 
 <style scoped>

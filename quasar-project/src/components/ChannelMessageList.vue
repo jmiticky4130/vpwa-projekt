@@ -1,6 +1,6 @@
 <template>
   <div class="message-list" ref="listEl">
-    <q-infinite-scroll @load="loadMoreMessages" :offset="100" reverse scroll-target=".message-list" :key="props.channelKey">
+    <q-infinite-scroll @load="loadMoreMessages" :offset="100" reverse scroll-target=".message-list" :key="props.channelKey + userStatus">
       <template v-slot:loading>
         <div class="row justify-center q-my-md">
           <q-spinner color="primary" name="dots" size="40px" />
@@ -29,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, defineExpose, onMounted, computed } from 'vue';
+import { ref, watch, nextTick, onMounted, computed } from 'vue';
 import { useUserStore } from 'src/stores/user-store'
 import { storeToRefs } from 'pinia'
 
@@ -74,9 +74,9 @@ function loadMessages() {
   } catch {
     allMessages.value = [];
   }
-  // reset paging; keep showing existing messages even when offline
+
   loadedCount.value = Math.min(BATCH_SIZE, allMessages.value.length);
-    currMessages.value = allMessages.value.slice(allMessages.value.length - loadedCount.value);
+  currMessages.value = allMessages.value.slice(allMessages.value.length - loadedCount.value);
   console.log("Loaded messages:", allMessages.value.length, "Showing:", loadedCount.value);
   scrollToBottom();
 }

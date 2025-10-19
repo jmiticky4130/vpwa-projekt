@@ -3,7 +3,7 @@
     <template v-if="channels.length">
       <q-tabs
         vertical
-        v-model="activeId"
+        v-model="activeSlug"
         class="channel-tabs"
         content-class="channel-tabs-content"
         dense
@@ -12,10 +12,17 @@
       >
         <q-tab
           v-for="ch in channels"
-          :key="ch.id"
-          :name="String(ch.id)"
-          :class="['channel-tab', { public: ch.public, private: !ch.public, active: String(ch.id) === activeId }]
-          "
+          :key="ch.name"
+          :name="ch.name"
+          :class="[
+            'channel-tab',
+            {
+              public: ch.public,
+              private: !ch.public,
+              active: ch.name === activeSlug,
+              'is-new': currentUser?.newchannels?.includes(ch.name.toLowerCase()),
+            },
+          ]"
         >
           <div class="tab-content">
             <q-badge :color="ch.public ? 'green-7' : 'deep-orange-6'" class="text-white channel-badge">
@@ -36,40 +43,39 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { Channel } from 'src/types/channel'
 import { useChannelStore } from 'src/stores/channel-store'
+import { useUserStore } from 'src/stores/user-store'
+import { storeToRefs } from 'pinia'
 
 const channelStore = useChannelStore()
-const channels = computed<Channel[]>(() => channelStore.list())
+const userStore = useUserStore()
+const { currentUser } = storeToRefs(userStore)
+const channels = computed<Channel[]>(() => {
+  const uid = currentUser.value?.id
+  if (uid == null) return []
+  // Only show accessible channels and sort user's newchannels to the top
+  return channelStore.list({ userId: uid, newchannels: currentUser.value?.newchannels ?? [] })
+})
 
 const router = useRouter()
 const route = useRoute()
 
-const getIdBySlug = (slug: string) => {
-  const found = channels.value.find((c: Channel) => c.name.toLowerCase() === slug.toLowerCase())
-  return found ? String(found.id) : ''
-}
-
-const getSlugById = (id: string) => {
-  const found = channels.value.find((c: Channel) => String(c.id) === id)
-  return found ? found.name : ''
-}
-
-// initialize active tab from route
+// initialize active tab from route (do not default to first channel)
 const initialSlug = String(route.params.slug || '')
-const initialId = initialSlug ? getIdBySlug(initialSlug) : String(channels.value[0]?.id ?? '')
-const activeId = ref(String(initialId))
+const activeSlug = ref(initialSlug)
 
 // keep active tab in sync when route changes externally
 watch(
   () => route.params.slug,
   (slug) => {
-    const id = slug ? getIdBySlug(String(slug)) : ''
-    if (id && id !== activeId.value) activeId.value = id
+    const s = slug ? String(slug) : ''
+    if (s && s !== activeSlug.value) activeSlug.value = s
   }
 )
 
-function onSelect(id: string) {
-  const slug = getSlugById(id)
+function onSelect(slug: string) {
   if (slug) {
+    const uid = currentUser.value?.id
+    if (uid != null) userStore.clearNewChannel(uid, slug)
     void router.push({ name: 'channel', params: { slug } })
   }
 }
@@ -123,6 +129,12 @@ function onSelect(id: string) {
   border-left: 4px solid rgba(255,255,255,0.9);
   background: rgba(255,255,255,0.08) !important;
   color: rgba(255,255,255,0.98);
+}
+
+.channel-tab.is-new {
+  border-color: #00cbe6;
+  border-width: 3px;
+  border-style: solid;
 }
 
 /* hover */

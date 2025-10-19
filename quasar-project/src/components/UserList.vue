@@ -1,7 +1,7 @@
 <template>
   <div class="user-list-wrapper bg-grey-10">
     <q-list bordered class="rounded-borders user-list">
-      <q-item-label header>Users ({{ users.length }})</q-item-label>
+      <q-item-label header>Members ({{ users.length }})</q-item-label>
       <q-item v-for="u in users" :key="u.id || u.email">
         <q-item-section>
           <q-item-label class="text-grey-4">
