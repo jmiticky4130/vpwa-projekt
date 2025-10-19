@@ -3,4 +3,5 @@ export interface Channel {
   name: string;
   public: boolean;
   creatorId: number;
+  members: number[];
 }
