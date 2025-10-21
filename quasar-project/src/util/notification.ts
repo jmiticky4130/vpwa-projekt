@@ -1,33 +1,48 @@
 // src/composables/useNotify.ts
-import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { useUserStore } from 'src/stores/user-store';
 import { storeToRefs } from 'pinia';
+import { Notify } from 'quasar'
+import { AppVisibility } from 'quasar'
 
 export function useNotify() {
-  const $q = useQuasar();
   const router = useRouter();
   const userStore = useUserStore();
   const { currentUser } = storeToRefs(userStore);
 
-  function shouldNotify() {
-    // Suppress notifications when user is in Do Not Disturb
-    return (currentUser.value?.status ?? 'online') !== 'dnd';
+  function shouldNotify(rawMessage?: string) {
+    // Suppress notifications when user is in Do Not Disturb or when the app is not visible
+    const isVisible = AppVisibility.appVisible === true;
+    const status = currentUser.value?.status ?? 'online';
+    if (status === 'dnd' || !isVisible) return false;
+
+    // If user wants only directed messages (@nickname), enforce it
+    const onlyDirected = currentUser.value?.showOnlyDirectedMessages ?? false;
+    if (!onlyDirected) return true;
+
+    const nick = currentUser.value?.nickname?.trim();
+    if (!nick || !rawMessage) return false;
+    const mention = `@${nick}`;
+    return rawMessage.includes(mention);
   }
 
   function notifyMessage(userMessage: string, channelSlug: string, userNickname: string) {
-    // if the user message is long of empty stright trim it
+    // empty -> no op
     if (userMessage.length === 0) {
         return;
     }
-    if (userMessage.length > 25) {
-        userMessage = userMessage.substring(0, 25) + '...';
+
+    // Decide using raw message content to preserve mentions for filtering
+    if (!shouldNotify(userMessage)) return;
+
+    // Create a display-friendly version for the notification
+    let display = userMessage;
+    if (display.length > 25) {
+        display = display.substring(0, 25) + '...';
     }
 
-    const message = `User: ${userNickname} in channel: ${channelSlug}: ${userMessage}`;
-
-    if (!shouldNotify()) return;
-    $q.notify({
+    const message = `User: ${userNickname} in channel: ${channelSlug}: ${display}`;
+    Notify.create({
       message,
       actions: [
         {
@@ -42,7 +57,7 @@ export function useNotify() {
           label: 'Dismiss',
           color: 'white',
           handler: () => {
-            const dismiss = $q.notify({});
+            const dismiss = Notify.create({});
             dismiss();
           },
         },
@@ -51,89 +66,73 @@ export function useNotify() {
   }
   
   function notifyJoinedChannel(name: string) {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'positive', message: `Joined #${name}` });
+    Notify.create({ type: 'positive', message: `Joined #${name}` });
   }
 
   function notifyAlreadyMember(name: string) {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'info', message: `You are already a member in channel #${name}` });
+    Notify.create({ type: 'info', message: `You are already a member in channel #${name}` });
   }
   
   function notifyPrivateChannelBlocked(name: string) {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'warning', message: `#${name} is private. You cannot join.` });
+    Notify.create({ type: 'warning', message: `#${name} is private. You cannot join.` });
   }
   
   function notifyChannelCreated(name: string, visibility: 'public' | 'private') {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'positive', message: `Created #${name} (${visibility})` });
+    Notify.create({ type: 'positive', message: `Created #${name} (${visibility})` });
   }
   
   function notifyCreatorOnlyPrivacy() {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'warning', message: 'Only the channel creator can change privacy.' });
+    Notify.create({ type: 'warning', message: 'Only the channel creator can change privacy.' });
   }
   
   function notifyChannelAlreadyState(isPublic: boolean) {
-    if (!shouldNotify()) return;
-    $q.notify({
+    Notify.create({
       type: 'info',
       message: `Channel is already ${isPublic ? 'public' : 'private'}.`,
     });
   }
   
   function notifyChannelPrivacyUpdated(isPublic: boolean) {
-    if (!shouldNotify()) return;
-    $q.notify({
+    Notify.create({
       type: 'positive',
       message: `Channel is now ${isPublic ? 'public' : 'private'}`,
     });
   }
   
   function notifyChannelDeleted(name: string) {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'info', message: `You deleted #${name}` });
+    Notify.create({ type: 'info', message: `You deleted #${name}` });
   }
   
   function notifyLeftChannel(name: string) {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'info', message: `You left #${name}` });
+    Notify.create({ type: 'info', message: `You left #${name}` });
   }
 
   function notifyInviteSuccess(target: string, channel: string) {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'positive', message: `Invited @${target} to #${channel}` });
+    Notify.create({ type: 'positive', message: `Invited @${target} to #${channel}` });
   }
 
   function notifyRevokeSuccess(target: string, channel: string) {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'warning', message: `Removed @${target} from #${channel}` });
+    Notify.create({ type: 'warning', message: `Removed @${target} from #${channel}` });
   }
 
   function notifyInviteNotAllowedPrivate() {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'warning', message: 'Only the channel creator can invite to a private channel.' });
+    Notify.create({ type: 'warning', message: 'Only the channel creator can invite to a private channel.' });
   }
 
   function notifyRevokeNotCreator() {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'warning', message: 'Only the channel creator can revoke members.' });
+    Notify.create({ type: 'warning', message: 'Only the channel creator can revoke members.' });
   }
 
   function notifyUserNotFound(identifier: string) {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'negative', message: `User '${identifier}' not found.` });
+    Notify.create({ type: 'negative', message: `User '${identifier}' not found.` });
   }
 
   function notifyAlreadyInChannel(target: string, channel: string) {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'info', message: `@${target} is already in #${channel}` });
+    Notify.create({ type: 'info', message: `@${target} is already in #${channel}` });
   }
 
   function notifyNotInChannel(target: string, channel: string) {
-    if (!shouldNotify()) return;
-    $q.notify({ type: 'info', message: `@${target} is not a member of #${channel}` });
+    Notify.create({ type: 'info', message: `@${target} is not a member of #${channel}` });
   }
   
   return {

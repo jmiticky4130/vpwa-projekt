@@ -43,8 +43,6 @@ export const useChannelStore = defineStore('channels', () => {
       })
   }
 
-
-
   function findByName(name: string): Channel | undefined {
     return channels.value.find((c) => c.name.toLowerCase() === name.toLowerCase())
   }

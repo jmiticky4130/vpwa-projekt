@@ -2,7 +2,7 @@
   <div class="user-list-wrapper bg-grey-10">
     <q-list bordered class="rounded-borders user-list">
       <q-item-label header>Members ({{ users.length }})</q-item-label>
-      <q-item v-for="u in users" :key="u.id || u.email">
+  <q-item v-for="u in users" :key="u.id">
         <q-item-section>
           <q-item-label class="text-grey-4">
             {{ u.nickname }} <span v-if="isCurrent(u)" class="you-pill">(you)</span>
@@ -29,7 +29,7 @@ function isCurrent(u: User) {
 }
 
 function statusOf(u: User): 'online' | 'dnd' | 'offline' {
-  return u.status ?? 'offline';
+  return u.status;
 }
 
 function colorFor(s: 'online' | 'dnd' | 'offline') {

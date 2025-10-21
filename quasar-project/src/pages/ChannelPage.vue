@@ -9,7 +9,9 @@
           <q-badge v-if="channelCreatorLabel" color="indigo-6" class="text-white">
             Creator: {{ channelCreatorLabel }}
           </q-badge>
-          <q-btn @click="onNotify" color="primary" label="Notify" dense flat class="q-ml-xs" />
+          <q-btn @click="onNotify(false)" color="primary" label="Notify" dense flat class="q-ml-xs" />
+          <q-btn @click="onNotify(true)" color="primary" label="Direct Notify" dense flat class="q-ml-xs" />
+          <q-btn @click="simulateAliceTyping()" color="secondary" label="Simulate typing" dense flat class="q-ml-xs" />
           <h4 class="q-ma-none text-white ellipsis">{{ channel.name }}</h4>
         </header>
         <div class="channel-sub text-grey-5" v-if="channel">
@@ -19,7 +21,6 @@
           <ChannelMessageList
             ref="msgListRef"
             :channel-key="channelKey"
-            :currentUser="currentUserDisplay"
           />
         </div>
       </div>
@@ -65,25 +66,31 @@ const channelKey = computed(() => (channel.value ? channel.value.name.toLowerCas
 // Access list methods
 const msgListRef = ref<InstanceType<typeof ChannelMessageList> | null>(null);
 
-function onNotify() {
+function onNotify(directed : boolean) {
   notifyMessage(
-    'Hello this is a test notification',
+    `Hello ${directed ? `@${currentUserDisplay.value}` : ''} this is a test notification `,
     channel.value?.name || '',
     currentUserDisplay.value,
   );
 }
 
-// Current user display name (nickname fallback to email)
+function simulateAliceTyping() {
+  const author = 'alice';
+  const finalText = 'Hey there! This is a message that im writing hello hello hellohellohellohello';
+  msgListRef.value?.simulateTyping(author, finalText);
+}
+
+// Current user display name (nickname)
 const userStore = useUserStore();
 const { currentUser } = storeToRefs(userStore);
-const currentUserDisplay = computed(() => currentUser.value?.nickname || 'Anonymous');
-const currentUserEmail = computed(() => currentUser.value?.email || '');
+const currentUserDisplay = computed(() => currentUser.value?.nickname ?? '');
+const currentUserEmail = computed(() => currentUser.value?.email ?? '');
 
 const channelCreatorLabel = computed(() => {
   const ch = channel.value;
   if (!ch || ch.creatorId == null) return '';
   const creator = userStore.users.find((u) => u.id === ch.creatorId);
-  return creator?.nickname || creator?.email || String(ch.creatorId);
+  return creator ? creator.nickname : String(ch.creatorId);
 });
 
 // Only users who are members of this channel
@@ -91,16 +98,12 @@ const channelUsers = computed(() => {
   const ch = channel.value;
   if (!ch) return [];
   const ids = Array.isArray(ch.members) ? ch.members : [];
-  return userStore.users.filter((u) => ids.includes(u.id ?? -1));
+  return userStore.users.filter((u) => ids.includes(u.id));
 });
-
-function appendToList(text: string) {
-  msgListRef.value?.appendMessage(text, { name: currentUserDisplay.value, sent: true });
-}
 
 // Hook submit to append
 function handleSubmit(value: string) {
-  appendToList(value);
+  msgListRef.value?.appendMessage(value, { name: currentUserDisplay.value, state: "sent" });
 }
 </script>
 
