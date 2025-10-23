@@ -173,34 +173,34 @@ async function handleCommand(cmd: Command) {
     }
     const identifierRaw = cmd.args.join(' ').trim()
     const identifier = identifierRaw.replace(/^@/, '')
-    const target = userStore.users.find((u) => u.nickname?.toLowerCase() === identifier.toLowerCase() || u.email.toLowerCase() === identifier.toLowerCase())
-    if (!target || target.id == null) {
+    const target = userStore.users.find((u) => u.nickname.toLowerCase() === identifier.toLowerCase() || u.email.toLowerCase() === identifier.toLowerCase())
+    if (!target) {
       notifyUserNotFound(identifier)
       return
     }
     const isMember = Array.isArray(ch.members) && ch.members.includes(target.id)
     if (cmd.name === 'invite') {
       if (isMember) {
-        notifyAlreadyInChannel(target.nickname || target.email, ch.name)
+        notifyAlreadyInChannel(target.nickname, ch.name)
         return
       }
   channelStore.addMember(ch.name, target.id)
   // Mark as new for target user so it floats to top
   userStore.addNewChannel(target.id, ch.name)
-      notifyInviteSuccess(target.nickname || target.email, ch.name)
+      notifyInviteSuccess(target.nickname, ch.name)
       return
     } else {
       if (!isMember) {
-        notifyNotInChannel(target.nickname || target.email, ch.name)
+        notifyNotInChannel(target.nickname, ch.name)
         return
       }
       // prevent creator from revoking themselves by mistake
       if (target.id === ch.creatorId) {
-        notifyNotInChannel(target.nickname || target.email, ch.name)
+        notifyNotInChannel(target.nickname, ch.name)
         return
       }
       channelStore.removeMember(ch.name, target.id)
-      notifyRevokeSuccess(target.nickname || target.email, ch.name)
+      notifyRevokeSuccess(target.nickname, ch.name)
       return
     }
   }

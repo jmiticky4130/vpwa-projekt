@@ -20,7 +20,7 @@
               public: ch.public,
               private: !ch.public,
               active: ch.name === activeSlug,
-              'is-new': currentUser?.newchannels?.includes(ch.name.toLowerCase()),
+              'is-new': currentUser?.newchannels.includes(ch.name.toLowerCase()),
             },
           ]"
         >
