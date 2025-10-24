@@ -25,7 +25,7 @@ import type { Channel } from 'src/types/channel'
 const props = defineProps<{ channelName?: string }>()
 const emit = defineEmits<{ submit: [value: string] }>()
 const message = ref('')
-const placeholder = computed(() => `Message #${props.channelName}`)
+const placeholder = computed(() => (props.channelName ? `Message #${props.channelName}` : 'Type /join #channel to start or join one'))
 const router = useRouter()
 const channelStore = useChannelStore()
 const userStore = useUserStore()
@@ -107,8 +107,6 @@ async function handleCommand(cmd: Command) {
         // ensure current user becomes a member when joining a public channel
         if (uid != null) {
           channelStore.addMember(ch.name, uid)
-          // mark as new for this user so it floats to top -- NOT NEEDED
-          // userStore.addNewChannel(uid, ch.name)
         }
         await router.push({ name: 'channel', params: { slug: ch.name } })
         notifyJoinedChannel(ch.name)
@@ -249,9 +247,8 @@ function onEnter() {
 
 <style scoped>
 .channel-text-field {
-  position: fixed;
-  left: 220px;
-  right: 0;
+  position: absolute;
+  width: 100%;
   bottom: 0;
   padding: 8px 12px;
   background: rgba(0, 0, 0, 0.5);
@@ -259,9 +256,7 @@ function onEnter() {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
-  justify-content: flex;
   gap: 8px;
-  z-index: 1000;
 }
 .text-field-input {
   width: 100%;

@@ -1,8 +1,16 @@
 <template>
   <div class="user-list-wrapper bg-grey-10">
     <q-list bordered class="rounded-borders user-list">
+      <q-item v-if="currentUser" class="q-py-sm xs">
+        <q-item-section>
+          <q-badge color="blue-grey-10" class="flex items-center justify-center" text-color="primary">{{ currentUser.email }}</q-badge>
+        </q-item-section>
+        <q-item-section side>
+          <q-btn dense flat icon="logout" @click="onLogout" />
+        </q-item-section>
+      </q-item>
       <q-item-label header>Members ({{ users.length }})</q-item-label>
-  <q-item v-for="u in users" :key="u.id">
+      <q-item v-for="u in users" :key="u.id || u.email">
         <q-item-section>
           <q-item-label class="text-grey-4">
             {{ u.nickname }} <span v-if="isCurrent(u)" class="you-pill">(you)</span>
@@ -21,6 +29,9 @@
 <script setup lang="ts">
 
 import type { User } from 'src/types/user';
+import { useUserStore } from 'src/stores/user-store';
+import { storeToRefs } from 'pinia';
+import { useRouter } from 'vue-router';
 
 const props = defineProps<{ users: User[]; currentUserEmail?: string }>();
 
@@ -29,7 +40,7 @@ function isCurrent(u: User) {
 }
 
 function statusOf(u: User): 'online' | 'dnd' | 'offline' {
-  return u.status;
+  return u.status ?? 'offline';
 }
 
 function colorFor(s: 'online' | 'dnd' | 'offline') {
@@ -38,11 +49,20 @@ function colorFor(s: 'online' | 'dnd' | 'offline') {
   return 'grey-7';
 }
 
+// user + logout for mobile header
+const userStore = useUserStore();
+const router = useRouter();
+const { currentUser } = storeToRefs(userStore);
+function onLogout() {
+  userStore.logout();
+  void router.push('/login');
+}
+
 </script>
 
 <style scoped>
 .user-list-wrapper {
-  width: 240px;
+  width: 100%;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
