@@ -45,7 +45,7 @@
 		<q-btn
 			round dense unelevated size="md"
 			:color="colorFor('directed')"
-			:outline="directedOnly !== false"
+			:outline="directedOnly !== true"
 			@click="toggleShowOnlyDirectedMessages"
 			icon="trip_origin"
 			:aria-label="'Directed Messages'"
@@ -95,17 +95,16 @@ onBeforeMount(() => {
 
 <style scoped>
 .user-status-bar {
-	position: fixed;
+	position: sticky;
 	left: 0;
 	bottom: 0;
-	width: 220px;
+	width: 100%;
 	height: 61px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	gap: 16px;
-	padding: 8px 6px;
-	background: rgba(0, 0, 0, 0.58);
+	background: #00000094;
 	border-top: 1px solid #222;
 }
 </style>

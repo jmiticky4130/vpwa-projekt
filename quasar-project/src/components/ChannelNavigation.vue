@@ -83,7 +83,7 @@ function onSelect(slug: string) {
 
 <style scoped>
 .channel-nav {
-  width: 220px;
+  width: 100%;
   background: rgba(255,255,255,0.02);
   --channel-nav-offset: var(--q-header-height, 56px);
   position: sticky;
@@ -97,6 +97,7 @@ function onSelect(slug: string) {
   flex-direction: column;
   height: 100%;
   padding-top: 4px;
+  padding-bottom: 4px;
   overflow: hidden;
 }
 

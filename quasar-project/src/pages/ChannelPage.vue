@@ -30,11 +30,13 @@
         :current-user-email="currentUserEmail"
       />
     </div>
-    <ChannelTextField
-      v-if="channel"
-      :channel-name="channel.name"
-      @submit="handleSubmit"
-    />
+    <div class="absolute-bottom full-width">
+      <ChannelTextField
+        v-if="channel"
+        :channelName="channel.name"
+        @submit="handleSubmit"
+      />
+    </div>
   </q-page>
 </template>
 
