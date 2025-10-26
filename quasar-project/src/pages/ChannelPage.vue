@@ -49,7 +49,12 @@
       />
     </div>
     <div class="absolute-bottom full-width">
-      <ChannelTextField v-if="channel" :channelName="channel.name" @submit="handleSubmit" />
+      <ChannelTextField
+        v-if="channel"
+        :channelName="channel.name"
+        @submit="handleSubmit"
+        @system="handleSystem"
+      />
     </div>
   </q-page>
 </template>
@@ -114,6 +119,10 @@ const channelUsers = computed(() => {
 
 function handleSubmit(value: string) {
   msgListRef.value?.appendMessage(value, { name: currentUserDisplay.value, state: 'sent' });
+}
+
+function handleSystem(value: string) {
+  msgListRef.value?.appendMessage(value, { name: 'System', state: 'sent' });
 }
 </script>
 

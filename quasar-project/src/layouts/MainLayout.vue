@@ -33,7 +33,7 @@
       >
         <template v-if="$q.screen.xs && currentUser">
           <div v-if="mobileTab === 'channels'" style="position: relative; width: 100%">
-            <ChannelNavigation />
+            <ChannelNavigation @selected="mobileTab = 'chat'" />
             <UserStatusBar />
           </div>
 

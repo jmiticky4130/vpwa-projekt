@@ -13,7 +13,7 @@
         </div>
       </template>
       <div
-        v-for="m in currMessages"
+        v-for="m in displayedMessages"
         :key="m.id"
         :class="[
           'msg-row',
@@ -75,6 +75,22 @@ type Message = {
 const props = defineProps<{ channelKey: string }>();
 const allMessages = ref<Message[]>([]);
 const currMessages = ref<Message[]>([]);
+// Track the last message that transitioned from typing->sent so it can be shown as the absolute bottom item
+const lastFinishedId = ref<string | null>(null);
+const displayedMessages = computed<Message[]>(() => {
+  const live = currMessages.value.filter((m) => m.state === 'typing' || m.state === 'peeking');
+  const last = lastFinishedId.value
+    ? currMessages.value.filter((m) => m.id === lastFinishedId.value)
+    : ([] as Message[]);
+  const rest = currMessages.value.filter(
+    (m) =>
+      m.state !== 'typing' &&
+      m.state !== 'peeking' &&
+      (lastFinishedId.value ? m.id !== lastFinishedId.value : true),
+  );
+  // Order: normal sent messages, then live typing/peeking, and finally the just-finished message
+  return [...rest, ...live, ...last];
+});
 const listEl = ref<HTMLElement | null>(null);
 const loadedCount = ref(0);
 const BATCH_SIZE = 20;
@@ -169,6 +185,8 @@ function appendMessage(text: string, opts?: Partial<Message>) {
     loadedCount.value = Math.min(allMessages.value.length, loadedCount.value + 1);
     scrollToBottom();
   }
+  // Any new append clears the special bottom pin
+  lastFinishedId.value = null;
   persist();
 }
 
@@ -226,22 +244,28 @@ function simulateTyping(author: string, finalText: string, delayMs = 5000) {
 
   // Resolve after delay
   setTimeout(() => {
-    const idx = allMessages.value.findIndex((m) => m.id === id);
-    if (idx !== -1) {
-      const base = allMessages.value[idx]!;
-      const updated: Message = {
-        id: base.id,
-        state: 'sent',
-        name: base.name,
-        text: finalText,
-        stamp: new Date().toLocaleTimeString(),
-      };
-      allMessages.value.splice(idx, 1, updated);
-      const cidx = currMessages.value.findIndex((m) => m.id === id);
-      if (cidx !== -1) currMessages.value.splice(cidx, 1, updated);
-      persist();
+  const idx = allMessages.value.findIndex((m) => m.id === id);
+  if (idx !== -1) {
+    const base = allMessages.value[idx]!;
+
+    allMessages.value.splice(idx, 1);
+    const cidx = currMessages.value.findIndex((m) => m.id === id);
+    if (cidx !== -1) {
+      currMessages.value.splice(cidx, 1);
     }
-  }, delayMs);
+
+    // Append the final message so it ends up at the bottom
+    appendMessage(finalText, {
+      id: base.id,
+      state: 'sent',
+      name: base.name,
+      stamp: new Date().toLocaleTimeString(),
+    });
+
+    persist();
+    scrollToBottom();
+  }
+}, delayMs);
 }
 
 defineExpose({ appendMessage, simulateTyping });
@@ -280,7 +304,7 @@ watch(
   --own-border: rgba(0, 150, 200, 0.5);
   --incoming-bg: rgba(255, 255, 255, 0.04);
   --incoming-border: rgba(255, 255, 255, 0.06);
-  --mention-border: #7e0000;
+  --mention-border: #c00202;
   display: flex;
 
   flex-direction: column;
@@ -332,6 +356,9 @@ watch(
 
 .msg-row--mention .flat-message :deep(.q-message-text) {
   border-color: var(--mention-border);
+  border-width: 3px;
+  border-style: dashed;
+
 }
 
 .flat-message :deep(.q-message-stamp) {

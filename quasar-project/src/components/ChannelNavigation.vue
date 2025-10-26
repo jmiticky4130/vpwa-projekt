@@ -48,6 +48,10 @@ import { useChannelStore } from 'src/stores/channel-store';
 import { useUserStore } from 'src/stores/user-store';
 import { storeToRefs } from 'pinia';
 
+const emit = defineEmits<{
+  (e: 'selected'): void
+}>();
+
 const channelStore = useChannelStore();
 const userStore = useUserStore();
 const { currentUser } = storeToRefs(userStore);
@@ -76,6 +80,7 @@ function onSelect(slug: string) {
   if (slug) {
     const uid = currentUser.value?.id;
     if (uid != null) userStore.clearNewChannel(uid, slug);
+    emit('selected');
     void router.push({ name: 'channel', params: { slug } });
   }
 }

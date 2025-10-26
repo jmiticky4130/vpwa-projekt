@@ -23,7 +23,7 @@ import { storeToRefs } from 'pinia';
 import type { Channel } from 'src/types/channel';
 
 const props = defineProps<{ channelName?: string }>();
-const emit = defineEmits<{ submit: [value: string] }>();
+const emit = defineEmits<{ submit: [value: string]; system: [value: string] }>();
 const message = ref('');
 const placeholder = computed(() =>
   props.channelName ? `Message #${props.channelName}` : 'Type /join #channel to start or join one',
@@ -60,7 +60,7 @@ const {
 } = useNotify();
 
 type Command = {
-  name: 'join' | 'public' | 'private' | 'quit' | 'cancel' | 'invite' | 'revoke' | 'kick';
+  name: 'join' | 'public' | 'private' | 'quit' | 'cancel' | 'invite' | 'revoke' | 'kick' | 'list';
   args: string[];
 };
 
@@ -98,6 +98,9 @@ function tryParseCommand(value: string): Command | null {
   if (cmdName === 'kick') {
     const arg = parts.slice(1).join(' ').trim();
     if (arg) return { name: 'kick', args: [arg] };
+  }
+  if (cmdName === 'list') {
+    return { name: 'list', args: [] as string[] };
   }
   return null;
 }
@@ -294,6 +297,23 @@ async function handleCommand(cmd: Command) {
       channelStore.banUser(ch.name, target.id);
     }
     notifyKickVoteAdded(target.nickname, result.count);
+    return;
+  }
+
+  if (cmd.name === 'list') {
+    const currentName = props.channelName || '';
+    if (!currentName) return;
+    const ch = channelStore.findByName(currentName);
+    if (!ch) return;
+    const ids = Array.isArray(ch.members) ? ch.members : [];
+    const names = userStore.users
+      .filter((u) => ids.includes(u.id))
+      .map((u) => u.nickname)
+      .sort((a, b) => a.localeCompare(b));
+    const text = names.length
+      ? `Members (${names.length}): ${names.join(', ')}`
+      : 'No members in this channel yet.';
+    emit('system', text);
     return;
   }
 
