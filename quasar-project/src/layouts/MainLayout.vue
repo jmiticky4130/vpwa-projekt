@@ -30,7 +30,6 @@
       <div
         class="layout-with-channels"
         style="display: flex; height: calc(100vh - var(--q-header-height, 50px)); overflow: hidden"
-        
       >
         <template v-if="$q.screen.xs && currentUser">
           <div v-if="mobileTab === 'channels'" style="position: relative; width: 100%">
@@ -78,7 +77,6 @@ const userStore = useUserStore();
 const channelStore = useChannelStore();
 const { currentUser } = storeToRefs(userStore);
 
-// Mobile tabs state (xs only)
 const mobileTab = ref<'channels' | 'chat' | 'members'>('chat');
 
 // Current channel + users for Members tab

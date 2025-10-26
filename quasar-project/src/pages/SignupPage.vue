@@ -5,77 +5,77 @@
         <div class="text-h6">Create Account</div>
         <div class="text-caption text-grey-7">Sign up and you will be automatically logged in</div>
       </q-card-section>
-  <q-separator />
-  <q-form @submit.prevent="submit" novalidate>
-  <q-card-section class="q-gutter-sm">
-        <q-input
-          v-model="form.nickname"
-          label="Nickname"
-          dense
-          filled
-          :error="!!fieldErrors.nickname"
-          :error-message="fieldErrors.nickname || undefined"
-        />
-        <q-input
-          v-model="form.firstName"
-          label="First name"
-          dense
-          filled
-          :error="!!fieldErrors.firstName"
-          :error-message="fieldErrors.firstName || undefined"
-        />
-        <q-input
-          v-model="form.lastName"
-          label="Last name"
-          dense
-          filled
-          :error="!!fieldErrors.lastName"
-          :error-message="fieldErrors.lastName || undefined"
-        />
-        <q-input
-          v-model="form.email"
-          label="Email"
-          type="email"
-          dense
-          filled
-          :error="!!fieldErrors.email"
-          :error-message="fieldErrors.email || undefined"
-        />
-        <q-input
-          v-model="form.password"
-          :type="showPwd ? 'text' : 'password'"
-          label="Password"
-          dense
-          filled
-          :error="!!fieldErrors.password"
-          :error-message="fieldErrors.password || undefined"
-        >
-          <template #append>
-            <q-icon
-              :name="showPwd ? 'visibility_off' : 'visibility'"
-              class="cursor-pointer"
-              @click="showPwd = !showPwd"
-            />
-          </template>
-        </q-input>
-        <q-btn
-          type="submit"
-          color="primary"
-          class="full-width"
-          label="Sign up"
-          :loading="loading"
-        />
-        <q-btn
-          type="button"
-          flat
-          dense
-          no-caps
-          class="q-mt-sm"
-          label="Already have an account? Log in"
-          @click="goLogin"
-        />
-        <q-banner v-if="error" class="bg-red-2 text-red-10" rounded dense>{{ error }}</q-banner>
-      </q-card-section>
+      <q-separator />
+      <q-form @submit.prevent="submit" novalidate>
+        <q-card-section class="q-gutter-sm">
+          <q-input
+            v-model="form.nickname"
+            label="Nickname"
+            dense
+            filled
+            :error="!!fieldErrors.nickname"
+            :error-message="fieldErrors.nickname || undefined"
+          />
+          <q-input
+            v-model="form.firstName"
+            label="First name"
+            dense
+            filled
+            :error="!!fieldErrors.firstName"
+            :error-message="fieldErrors.firstName || undefined"
+          />
+          <q-input
+            v-model="form.lastName"
+            label="Last name"
+            dense
+            filled
+            :error="!!fieldErrors.lastName"
+            :error-message="fieldErrors.lastName || undefined"
+          />
+          <q-input
+            v-model="form.email"
+            label="Email"
+            type="email"
+            dense
+            filled
+            :error="!!fieldErrors.email"
+            :error-message="fieldErrors.email || undefined"
+          />
+          <q-input
+            v-model="form.password"
+            :type="showPwd ? 'text' : 'password'"
+            label="Password"
+            dense
+            filled
+            :error="!!fieldErrors.password"
+            :error-message="fieldErrors.password || undefined"
+          >
+            <template #append>
+              <q-icon
+                :name="showPwd ? 'visibility_off' : 'visibility'"
+                class="cursor-pointer"
+                @click="showPwd = !showPwd"
+              />
+            </template>
+          </q-input>
+          <q-btn
+            type="submit"
+            color="primary"
+            class="full-width"
+            label="Sign up"
+            :loading="loading"
+          />
+          <q-btn
+            type="button"
+            flat
+            dense
+            no-caps
+            class="q-mt-sm"
+            label="Already have an account? Log in"
+            @click="goLogin"
+          />
+          <q-banner v-if="error" class="bg-red-2 text-red-10" rounded dense>{{ error }}</q-banner>
+        </q-card-section>
       </q-form>
     </q-card>
   </q-page>
@@ -131,7 +131,6 @@ function submit() {
   }
   const hasFieldErrors = Object.values(fieldErrors.value).some((v) => !!v);
   if (hasFieldErrors) {
-    // show per-field hints only; clear shared banner so it doesn't always appear
     loading.value = false;
     error.value = null;
     return;
@@ -139,7 +138,6 @@ function submit() {
   try {
     const existing = userStore.findByEmail(form.email);
     if (existing) {
-      // flag the email field specifically
       fieldErrors.value.email = 'Email already in use';
       loading.value = false;
       error.value = null;

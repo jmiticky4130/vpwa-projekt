@@ -22,5 +22,13 @@
     "lastName": "qwe",
     "email": "qwe@qwe.com",
     "password": "qwe"
+  },
+  {
+    "id": 4,
+    "nickname": "asd",
+    "firstName": "asd",
+    "lastName": "asd",
+    "email": "asd@asd.com",
+    "password": "asd"
   }
 ]

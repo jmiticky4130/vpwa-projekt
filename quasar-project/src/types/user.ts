@@ -7,5 +7,5 @@ export interface User {
   password: string;
   status: 'online' | 'dnd' | 'offline';
   showOnlyDirectedMessages: boolean;
-  newchannels: string[]; // required array; can be empty
+  newchannels: string[];
 }

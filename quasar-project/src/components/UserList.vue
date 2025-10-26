@@ -3,7 +3,12 @@
     <q-list bordered class="rounded-borders user-list">
       <q-item v-if="currentUser" class="q-py-sm xs">
         <q-item-section>
-          <q-badge color="blue-grey-10" class="flex items-center justify-center" text-color="primary">{{ currentUser.email }}</q-badge>
+          <q-badge
+            color="blue-grey-10"
+            class="flex items-center justify-center"
+            text-color="primary"
+            >{{ currentUser.email }}</q-badge
+          >
         </q-item-section>
         <q-item-section side>
           <q-btn dense flat icon="logout" @click="onLogout" />
@@ -27,7 +32,6 @@
 </template>
 
 <script setup lang="ts">
-
 import type { User } from 'src/types/user';
 import { useUserStore } from 'src/stores/user-store';
 import { storeToRefs } from 'pinia';
@@ -49,7 +53,6 @@ function colorFor(s: 'online' | 'dnd' | 'offline') {
   return 'grey-7';
 }
 
-// user + logout for mobile header
 const userStore = useUserStore();
 const router = useRouter();
 const { currentUser } = storeToRefs(userStore);
@@ -57,7 +60,6 @@ function onLogout() {
   userStore.logout();
   void router.push('/login');
 }
-
 </script>
 
 <style scoped>
@@ -82,7 +84,7 @@ function onLogout() {
 }
 
 .user-list .q-item {
-  padding: 8px 12px; /* space inside each item (optional tweak) */
+  padding: 8px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.247);
 }
 
@@ -90,7 +92,8 @@ function onLogout() {
   border-bottom: none;
 }
 
-/* make the badge and text breathe a bit */
-.user-list .q-item-section { padding-top: 4px; padding-bottom: 4px; }
-
+.user-list .q-item-section {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
 </style>
