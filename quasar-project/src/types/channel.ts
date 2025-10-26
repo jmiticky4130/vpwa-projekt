@@ -4,4 +4,6 @@ export interface Channel {
   public: boolean;
   creatorId: number;
   members: number[];
+  banned: number[];
+  kickVotes: Record<string, number[]>;
 }

@@ -47,9 +47,17 @@ const {
   notifyUserNotFound,
   notifyAlreadyInChannel,
   notifyNotInChannel,
+  notifyKickNotAllowedPrivate,
+  notifyKickCannotKickCreator,
+  notifyKickCannotKickSelf,
+  notifyKickVoteAdded,
+  notifyKickVoteDuplicate,
+  notifyKickedByAdmin,
+  notifyBannedCannotJoin,
+  notifyInviteBlockedBanned,
 } = useNotify()
 
-type Command = { name: 'join' | 'public' | 'private' | 'quit' | 'cancel' | 'invite' | 'revoke'; args: string[] }
+type Command = { name: 'join' | 'public' | 'private' | 'quit' | 'cancel' | 'invite' | 'revoke' | 'kick'; args: string[] }
 
 function tryParseCommand(value: string): Command | null {
   if (!value.startsWith('/')) return null
@@ -84,6 +92,10 @@ function tryParseCommand(value: string): Command | null {
     const arg = parts.slice(1).join(' ').trim()
     if (arg) return { name: 'revoke', args: [arg] }
   }
+  if (cmdName === 'kick') {
+    const arg = parts.slice(1).join(' ').trim()
+    if (arg) return { name: 'kick', args: [arg] }
+  }
   return null
 }
 
@@ -101,6 +113,10 @@ async function handleCommand(cmd: Command) {
       if (isMember) {
         await router.push({ name: 'channel', params: { slug: ch.name } })
         notifyAlreadyMember(ch.name)
+        return
+      }
+      if (uid != null && channelStore.isBanned(ch.name, uid)) {
+        notifyBannedCannotJoin(ch.name)
         return
       }
       if (ch.public) {
@@ -123,6 +139,8 @@ async function handleCommand(cmd: Command) {
       public: false,
       creatorId,
       members: [creatorId],
+      banned: [],
+      kickVotes: {},
     }
     const created = channelStore.addChannel(payload)
 
@@ -182,7 +200,16 @@ async function handleCommand(cmd: Command) {
         notifyAlreadyInChannel(target.nickname, ch.name)
         return
       }
-  channelStore.addMember(ch.name, target.id)
+      // If target is banned, only creator can invite them back (and clear ban)
+      const isBanned = channelStore.isBanned(ch.name, target.id)
+      if (isBanned && !isCreator) {
+        notifyInviteBlockedBanned(target.nickname, ch.name)
+        return
+      }
+      if (isBanned && isCreator) {
+        channelStore.clearBan(ch.name, target.id)
+      }
+      channelStore.addMember(ch.name, target.id)
   // Mark as new for target user so it floats to top
   userStore.addNewChannel(target.id, ch.name)
       notifyInviteSuccess(target.nickname, ch.name)
@@ -201,6 +228,66 @@ async function handleCommand(cmd: Command) {
       notifyRevokeSuccess(target.nickname, ch.name)
       return
     }
+  }
+
+  if (cmd.name === 'kick') {
+    const currentName = props.channelName || ''
+    if (!currentName) return
+    const ch = channelStore.findByName(currentName)
+    if (!ch) return
+    const meId = currentUser.value?.id
+    if (meId == null) return
+    const identifierRaw = cmd.args.join(' ').trim()
+    const identifier = identifierRaw.replace(/^@/, '')
+    const target = userStore.users.find((u) => u.nickname.toLowerCase() === identifier.toLowerCase() || u.email.toLowerCase() === identifier.toLowerCase())
+    if (!target) {
+      notifyUserNotFound(identifier)
+      return
+    }
+    const isCreator = currentUser.value?.id === ch.creatorId
+    const targetIsMember = Array.isArray(ch.members) && ch.members.includes(target.id)
+
+    if (target.id === ch.creatorId) {
+      notifyKickCannotKickCreator()
+      return
+    }
+    if (target.id === meId) {
+      notifyKickCannotKickSelf()
+      return
+    }
+
+    if (isCreator) {
+      if (!targetIsMember && !channelStore.isBanned(ch.name, target.id)) {
+        notifyNotInChannel(target.nickname, ch.name)
+        return
+      }
+      channelStore.banUser(ch.name, target.id)
+      notifyKickedByAdmin(target.nickname, ch.name)
+      return
+    }
+
+    if (!ch.public) {
+      notifyKickNotAllowedPrivate()
+      return
+    }
+
+    const meIsMember = Array.isArray(ch.members) && ch.members.includes(meId)
+    if (!meIsMember || !targetIsMember) {
+      notifyNotInChannel(target.nickname, ch.name)
+      return
+    }
+
+    const result = channelStore.addKickVote(ch.name, meId, target.id)
+    if (!result.added) {
+      notifyKickVoteDuplicate(target.nickname)
+      return
+    }
+
+    if (result.thresholdReached) {
+      channelStore.banUser(ch.name, target.id)
+    }
+    notifyKickVoteAdded(target.nickname, result.count)
+    return
   }
 
   if (cmd.name === 'quit' || cmd.name === 'cancel') {

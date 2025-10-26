@@ -4,6 +4,11 @@ import { useUserStore } from 'src/stores/user-store';
 import { storeToRefs } from 'pinia';
 import { Notify } from 'quasar'
 import { AppVisibility } from 'quasar'
+import { Screen } from 'quasar'
+
+Notify.setDefaults({
+  position: Screen.lt.sm ? 'top' : 'bottom-right',
+});
 
 export function useNotify() {
   const router = useRouter();
@@ -123,6 +128,43 @@ export function useNotify() {
     Notify.create({ type: 'warning', message: 'Only the channel creator can revoke members.' });
   }
 
+  function notifyKickNotAllowedPrivate() {
+    Notify.create({ type: 'warning', message: 'Kick voting is only available in public channels.' });
+  }
+
+  function notifyKickCannotKickCreator() {
+    Notify.create({ type: 'warning', message: 'You cannot kick the channel creator.' });
+  }
+
+  function notifyKickCannotKickSelf() {
+    Notify.create({ type: 'info', message: 'You cannot kick yourself.' });
+  }
+
+  function notifyKickVoteAdded(target: string, count: number) {
+    const thresholdKick = 2;
+    const remaining = Math.max(0, thresholdKick - count);
+    const msg = remaining > 0
+      ? `Kick vote for @${target} registered (${count}/${thresholdKick}). ${remaining} more needed.`
+      : `Kick vote threshold reached for @${target}. User is now banned.`
+    Notify.create({ type: remaining > 0 ? 'info' : 'negative', message: msg });
+  }
+
+  function notifyKickVoteDuplicate(target: string) {
+    Notify.create({ type: 'info', message: `You've already voted to kick @${target}.` });
+  }
+
+  function notifyKickedByAdmin(target: string, channel: string) {
+    Notify.create({ type: 'negative', message: `@${target} was kicked from #${channel} by the creator.` });
+  }
+
+  function notifyBannedCannotJoin(name: string) {
+    Notify.create({ type: 'warning', message: `You are banned from #${name}. Contact the creator to be invited back.` });
+  }
+
+  function notifyInviteBlockedBanned(target: string, channel: string) {
+    Notify.create({ type: 'warning', message: `@${target} is banned from #${channel}. Only the creator can invite them back.` });
+  }
+
   function notifyUserNotFound(identifier: string) {
     Notify.create({ type: 'negative', message: `User '${identifier}' not found.` });
   }
@@ -149,6 +191,14 @@ export function useNotify() {
     notifyRevokeSuccess,
     notifyInviteNotAllowedPrivate,
     notifyRevokeNotCreator,
+    notifyKickNotAllowedPrivate,
+    notifyKickCannotKickCreator,
+    notifyKickCannotKickSelf,
+    notifyKickVoteAdded,
+    notifyKickVoteDuplicate,
+    notifyKickedByAdmin,
+    notifyBannedCannotJoin,
+    notifyInviteBlockedBanned,
     notifyUserNotFound,
     notifyAlreadyInChannel,
     notifyNotInChannel,

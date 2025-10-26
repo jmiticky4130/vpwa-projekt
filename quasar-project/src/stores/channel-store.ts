@@ -14,7 +14,15 @@ export const useChannelStore = defineStore('channels', () => {
     const members: number[] = Array.isArray(c.members)
       ? c.members
       : (typeof c.creatorId === 'number' ? [c.creatorId] : [])
-    return { ...c, members }
+    const banned: number[] = Array.isArray(c.banned) ? c.banned : []
+    // Ensure kickVotes is a simple object mapping targetId(string) -> unique voterId array
+    const rawVotes = c.kickVotes || {}
+    const kickVotes: Record<string, number[]> = {}
+    for (const [k, v] of Object.entries(rawVotes)) {
+      const unique = Array.isArray(v) ? Array.from(new Set(v)) : []
+      kickVotes[k] = unique
+    }
+    return { ...c, members, banned, kickVotes }
   })
   const channels = ref<Channel[]>(normalizedLoaded)
 
@@ -54,18 +62,30 @@ export const useChannelStore = defineStore('channels', () => {
     const members = Array.isArray(payload.members)
       ? payload.members
       : (typeof payload.creatorId === 'number' ? [payload.creatorId] : [])
-    const ch: Channel = { id, name: payload.name, public: payload.public, creatorId: payload.creatorId, members }
+    const ch: Channel = {
+      id,
+      name: payload.name,
+      public: payload.public,
+      creatorId: payload.creatorId,
+      members,
+      banned: Array.isArray(payload.banned) ? payload.banned : [],
+      kickVotes: payload.kickVotes ?? {},
+    }
     channels.value.push(ch)
     persist()
     return ch
   }
 
-  function addMember(name: string, userId: number) {
+  function addMember(name: string, userId: number): boolean {
     const ch = findByName(name)
-    if (ch && !ch.members.includes(userId)) {
+    if (!ch) return false
+    if (ch.banned.includes(userId)) return false
+    if (!ch.members.includes(userId)) {
       ch.members.push(userId)
       persist()
+      return true
     }
+    return false
   }
 
   function removeMember(name: string, userId: number) {
@@ -95,5 +115,50 @@ export const useChannelStore = defineStore('channels', () => {
     }
   }
 
-  return { channels, list, findByName, addChannel, setPrivacy, addMember, removeMember, removeChannel }
+  function isBanned(name: string, userId: number): boolean {
+    const ch = findByName(name)
+    if (!ch) return false
+    const banned = Array.isArray(ch.banned) ? ch.banned : []
+    return banned.includes(userId)
+  }
+
+  function banUser(name: string, targetUserId: number) {
+    const ch = findByName(name)
+    if (!ch) return
+    // remove from members if present
+    const idx = ch.members.indexOf(targetUserId)
+    if (idx >= 0) ch.members.splice(idx, 1)
+    if (!ch.banned.includes(targetUserId)) ch.banned.push(targetUserId)
+    // clear any votes for this target
+    delete ch.kickVotes[String(targetUserId)]
+    persist()
+  }
+
+  function clearBan(name: string, targetUserId: number) {
+    const ch = findByName(name)
+    if (!ch) return
+    ch.banned = ch.banned.filter((id) => id !== targetUserId)
+    // also clear votes so they start fresh
+    delete ch.kickVotes[String(targetUserId)]
+    persist()
+  }
+
+  function addKickVote(name: string, voterUserId: number, targetUserId: number): { added: boolean; count: number; thresholdReached: boolean } {
+    const ch = findByName(name)
+    const thresholdKick = 2
+    if (!ch) return { added: false, count: 0, thresholdReached: false }
+    const key = String(targetUserId)
+    const arr = Array.isArray(ch.kickVotes[key]) ? ch.kickVotes[key] : []
+    const set = new Set(arr)
+    const before = set.size
+    set.add(voterUserId)
+    const after = set.size
+    ch.kickVotes[key] = Array.from(set)
+    persist()
+    const count = ch.kickVotes[key].length
+    const thresholdReached = count >= thresholdKick
+    return { added: after > before, count, thresholdReached }
+  }
+
+  return { channels, list, findByName, addChannel, setPrivacy, addMember, removeMember, removeChannel, isBanned, banUser, clearBan, addKickVote }
 })
