@@ -5,53 +5,53 @@
         <div class="text-h6">Log In</div>
         <div class="text-caption text-grey-7">Access your account</div>
       </q-card-section>
-  <q-separator />
-  <q-form @submit.prevent="submit" novalidate>
-  <q-card-section class="q-gutter-sm">
-        <q-input
-          v-model="email"
-          label="Email"
-          type="email"
-          dense
-          filled
-          :error="!!fieldErrors.email"
-          :error-message="fieldErrors.email || undefined"
-        />
-        <q-input
-          v-model="password"
-          :type="showPwd ? 'text' : 'password'"
-          label="Password"
-          dense
-          filled
-          :error="!!fieldErrors.password"
-          :error-message="fieldErrors.password || undefined"
-        >
-          <template #append>
-            <q-icon
-              :name="showPwd ? 'visibility_off' : 'visibility'"
-              class="cursor-pointer"
-              @click="showPwd = !showPwd"
-            />
-          </template>
-        </q-input>
-        <q-btn
-          type="submit"
-          color="primary"
-          class="full-width"
-          label="Login"
-          :loading="loading"
-        />
-        <q-btn
-          type="button"
-          flat
-          dense
-          no-caps
-          class="q-mt-sm"
-          label="Need an account? Sign up"
-          @click="goSignup"
-        />
-        <q-banner v-if="error" class="bg-red-2 text-red-10" rounded dense>{{ error }}</q-banner>
-      </q-card-section>
+      <q-separator />
+      <q-form @submit.prevent="submit" novalidate>
+        <q-card-section class="q-gutter-sm">
+          <q-input
+            v-model="email"
+            label="Email"
+            type="email"
+            dense
+            filled
+            :error="!!fieldErrors.email"
+            :error-message="fieldErrors.email || undefined"
+          />
+          <q-input
+            v-model="password"
+            :type="showPwd ? 'text' : 'password'"
+            label="Password"
+            dense
+            filled
+            :error="!!fieldErrors.password"
+            :error-message="fieldErrors.password || undefined"
+          >
+            <template #append>
+              <q-icon
+                :name="showPwd ? 'visibility_off' : 'visibility'"
+                class="cursor-pointer"
+                @click="showPwd = !showPwd"
+              />
+            </template>
+          </q-input>
+          <q-btn
+            type="submit"
+            color="primary"
+            class="full-width"
+            label="Login"
+            :loading="loading"
+          />
+          <q-btn
+            type="button"
+            flat
+            dense
+            no-caps
+            class="q-mt-sm"
+            label="Need an account? Sign up"
+            @click="goSignup"
+          />
+          <q-banner v-if="error" class="bg-red-2 text-red-10" rounded dense>{{ error }}</q-banner>
+        </q-card-section>
       </q-form>
     </q-card>
   </q-page>
@@ -75,7 +75,7 @@ const fieldErrors = ref<{ [k: string]: string | null }>({ email: null, password:
 function submit() {
   loading.value = true;
   error.value = null;
-  // reset field errors
+
   Object.keys(fieldErrors.value).forEach((k) => (fieldErrors.value[k] = null));
   const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRe.test(email.value || '')) {
@@ -87,7 +87,6 @@ function submit() {
   const hasFieldErrors = Object.values(fieldErrors.value).some((v) => !!v);
   if (hasFieldErrors) {
     loading.value = false;
-    // show per-field errors only
     error.value = null;
     return;
   }

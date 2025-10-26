@@ -41,12 +41,13 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-
   function findByEmail(email: string): User | undefined {
     return users.value.find((u) => u.email === email);
   }
 
-  function createUser(payload: Omit<User, 'id' | 'status' | 'newchannels' | 'showOnlyDirectedMessages'>): User {
+  function createUser(
+    payload: Omit<User, 'id' | 'status' | 'newchannels' | 'showOnlyDirectedMessages'>,
+  ): User {
     const nextId = users.value.reduce((m, v) => Math.max(m, v.id), 0) + 1;
     const newUser: User = {
       ...payload,

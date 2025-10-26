@@ -164,8 +164,7 @@ function appendMessage(text: string, opts?: Partial<Message>) {
     ...opts,
   };
   allMessages.value.push(msg);
-  /*const isOwn = msg.sent === true && (!!msg.name && msg.name === currentUserDisplay.value)*/ // NOT YET NEEDED
-  if (userStatus.value !== 'offline' /*|| isOwn*/) {
+  if (userStatus.value !== 'offline') {
     currMessages.value = [...currMessages.value, msg];
     loadedCount.value = Math.min(allMessages.value.length, loadedCount.value + 1);
     scrollToBottom();
@@ -339,7 +338,6 @@ watch(
   color: rgba(255, 255, 255, 0.5);
   font-size: 11px;
 }
-
 
 .flat-message.state-typing :deep(.q-message-text) {
   border-style: dashed !important;

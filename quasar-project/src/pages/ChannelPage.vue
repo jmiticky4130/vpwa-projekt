@@ -9,19 +9,37 @@
           <q-badge v-if="channelCreatorLabel" color="indigo-6" class="text-white">
             Creator: {{ channelCreatorLabel }}
           </q-badge>
-          <q-btn @click="onNotify(false)" color="primary" label="Notify" dense flat class="q-ml-xs" />
-          <q-btn @click="onNotify(true)" color="primary" label="Direct Notify" dense flat class="q-ml-xs" />
-          <q-btn @click="simulateAliceTyping()" color="secondary" label="Simulate typing" dense flat class="q-ml-xs" />
+          <q-btn
+            @click="onNotify(false)"
+            color="primary"
+            label="Notify"
+            dense
+            flat
+            class="q-ml-xs"
+          />
+          <q-btn
+            @click="onNotify(true)"
+            color="primary"
+            label="Direct Notify"
+            dense
+            flat
+            class="q-ml-xs"
+          />
+          <q-btn
+            @click="simulateAliceTyping()"
+            color="secondary"
+            label="Simulate typing"
+            dense
+            flat
+            class="q-ml-xs"
+          />
           <h4 class="q-ma-none text-white ellipsis">{{ channel.name }}</h4>
         </header>
         <div class="channel-sub text-grey-5" v-if="channel">
           You are viewing <strong>{{ channel.name }}</strong>
         </div>
         <div class="messages-wrapper">
-          <ChannelMessageList
-            ref="msgListRef"
-            :channel-key="channelKey"
-          />
+          <ChannelMessageList ref="msgListRef" :channel-key="channelKey" />
         </div>
       </div>
       <UserList
@@ -31,11 +49,7 @@
       />
     </div>
     <div class="absolute-bottom full-width">
-      <ChannelTextField
-        v-if="channel"
-        :channelName="channel.name"
-        @submit="handleSubmit"
-      />
+      <ChannelTextField v-if="channel" :channelName="channel.name" @submit="handleSubmit" />
     </div>
   </q-page>
 </template>
@@ -56,21 +70,18 @@ const { notifyMessage } = useNotify();
 const route = useRoute();
 const channelStore = useChannelStore();
 
-// find by slug (name)
 const channel = computed<Channel | undefined>(() => {
   const slug = String(route.params.slug || '').toLowerCase();
   return channelStore.channels.find((c) => c.name.toLowerCase() === slug);
 });
 
-// Channel key for storage (based on slug/name)
 const channelKey = computed(() => (channel.value ? channel.value.name.toLowerCase() : ''));
 
-// Access list methods
 const msgListRef = ref<InstanceType<typeof ChannelMessageList> | null>(null);
 
-function onNotify(directed : boolean) {
-  notifyMessage(
-    `Hello ${directed ? `@${currentUserDisplay.value}` : ''} this is a test notification `,
+async function onNotify(directed: boolean) {
+  await notifyMessage(
+    `Hello${directed ? `@${currentUserDisplay.value}` : ''} this is a test notification `,
     channel.value?.name || '',
     currentUserDisplay.value,
   );
@@ -82,7 +93,6 @@ function simulateAliceTyping() {
   msgListRef.value?.simulateTyping(author, finalText);
 }
 
-// Current user display name (nickname)
 const userStore = useUserStore();
 const { currentUser } = storeToRefs(userStore);
 const currentUserDisplay = computed(() => currentUser.value?.nickname ?? '');
@@ -95,7 +105,6 @@ const channelCreatorLabel = computed(() => {
   return creator ? creator.nickname : String(ch.creatorId);
 });
 
-// Only users who are members of this channel
 const channelUsers = computed(() => {
   const ch = channel.value;
   if (!ch) return [];
@@ -103,16 +112,15 @@ const channelUsers = computed(() => {
   return userStore.users.filter((u) => ids.includes(u.id));
 });
 
-// Hook submit to append
 function handleSubmit(value: string) {
-  msgListRef.value?.appendMessage(value, { name: currentUserDisplay.value, state: "sent" });
+  msgListRef.value?.appendMessage(value, { name: currentUserDisplay.value, state: 'sent' });
 }
 </script>
 
 <style scoped>
 h4 {
   line-height: 1.2;
-  width: 100%; /* prevent growing on long names */
+  width: 100%;
 }
 
 .q-page {
