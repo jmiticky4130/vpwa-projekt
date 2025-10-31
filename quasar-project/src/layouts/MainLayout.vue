@@ -2,8 +2,10 @@
   <q-layout view="lHh Lpr lFf" class="bg-dark">
     <q-header elevated class="bg-primary text-white">
       <q-tabs
-        v-if="$q.screen.xs && currentUser"
+        class="mobile-tabs full-width"
+        v-if="($q.screen.xs || $q.screen.sm) && currentUser"
         v-model="mobileTab"
+        align="justify"
         indicator-color="white"
         active-color="white"
       >
@@ -14,15 +16,15 @@
       <q-toolbar v-else>
         <q-toolbar-title class="app-title text-weight-medium cursor-pointer" @click="goHome">
           <img class="title-gif" src="../assets/sili-cat.gif" alt="Silly cat" />
-          <span class="hidden-xs-only">ChatApp</span>
+          <span>ChatApp</span>
         </q-toolbar-title>
-        <div v-if="currentUser" class="row items-center q-gutter-sm hidden-xs-only">
+        <div v-if="currentUser" class="row items-center q-gutter-sm">
           <q-badge color="white" text-color="primary">{{ currentUser.email }}</q-badge>
           <q-btn dense flat icon="logout" @click="logout" />
         </div>
         <div v-else class="row items-center q-gutter-sm">
-          <q-btn v-if="!currentUser" dense flat label="Login" @click="goLogin" />
-          <q-btn v-if="!currentUser" dense flat label="Sign up" @click="goSignup" />
+          <q-btn dense flat label="Login" @click="goLogin" />
+          <q-btn dense flat label="Sign up" @click="goSignup" />
         </div>
       </q-toolbar>
     </q-header>
@@ -31,7 +33,7 @@
         class="layout-with-channels"
         style="display: flex; height: calc(100vh - var(--q-header-height, 50px)); overflow: hidden"
       >
-        <template v-if="$q.screen.xs && currentUser">
+        <template v-if="($q.screen.xs || $q.screen.sm) && currentUser">
           <div v-if="mobileTab === 'channels'" style="position: relative; width: 100%">
             <ChannelNavigation @selected="mobileTab = 'chat'" />
             <UserStatusBar />
@@ -125,4 +127,5 @@ function logout() {
 .mobile-hide-members :deep(.user-list-panel) {
   display: none !important;
 }
+
 </style>

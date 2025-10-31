@@ -330,7 +330,7 @@ async function handleCommand(cmd: Command) {
       } catch {
         console.log('Failed to remove channel messages from storage');
       }
-      channelStore.removeChannel(currentName);
+  channelStore.removeChannel(currentName, currentUser.value?.id ?? null);
       notifyChannelDeleted(currentName);
       await router.push({ path: '/' });
     } else {

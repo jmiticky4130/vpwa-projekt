@@ -1,7 +1,7 @@
 <template>
   <div class="user-list-wrapper bg-grey-10">
     <q-list bordered class="rounded-borders user-list">
-      <q-item v-if="currentUser" class="q-py-sm xs">
+      <q-item v-if="currentUser && ($q.screen.xs || $q.screen.sm)" class="q-py-sm">
         <q-item-section>
           <q-badge
             color="blue-grey-10"

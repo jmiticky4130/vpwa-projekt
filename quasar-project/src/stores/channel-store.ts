@@ -9,6 +9,7 @@ export const useChannelStore = defineStore('channels', () => {
   };
 
   const loaded = loadInitial();
+  /*
   // Ensure channels have members array; default to [creatorId]
   const normalizedLoaded: Channel[] = loaded.map((c: Channel) => {
     const members: number[] = Array.isArray(c.members)
@@ -26,7 +27,9 @@ export const useChannelStore = defineStore('channels', () => {
     }
     return { ...c, members, banned, kickVotes };
   });
-  const channels = ref<Channel[]>(normalizedLoaded);
+  */
+
+  const channels = ref<Channel[]>(loaded);
 
   const persist = () => {
     if (typeof window === 'undefined') return;
@@ -111,7 +114,11 @@ export const useChannelStore = defineStore('channels', () => {
     }
   }
 
-  function removeChannel(name: string) {
+  function removeChannel(name: string, uid: number | null) {
+    if (uid == null) return;
+    const ch = findByName(name);
+    if (!ch) return;
+    if (ch.creatorId !== uid) return;
     const idx = channels.value.findIndex((c) => c.name.toLowerCase() === name.toLowerCase());
     if (idx >= 0) {
       channels.value.splice(idx, 1);
@@ -144,11 +151,7 @@ export const useChannelStore = defineStore('channels', () => {
     persist();
   }
 
-  function addKickVote(
-    name: string,
-    voterUserId: number,
-    targetUserId: number,
-  ): { added: boolean; count: number; thresholdReached: boolean } {
+  function addKickVote(name: string, voterUserId: number, targetUserId: number): { added: boolean; count: number; thresholdReached: boolean } {
     const ch = findByName(name);
     const thresholdKick = 2;
     if (!ch) return { added: false, count: 0, thresholdReached: false };
