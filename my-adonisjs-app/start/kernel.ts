@@ -26,6 +26,7 @@ server.use([
   () => import('#middleware/container_bindings_middleware'),
   () => import('@adonisjs/static/static_middleware'),
   () => import('@adonisjs/vite/vite_middleware'),
+  () => import('@adonisjs/cors/cors_middleware'),
 ])
 
 /**
@@ -38,7 +39,6 @@ router.use([
   () => import('@adonisjs/shield/shield_middleware'),
   () => import('@adonisjs/auth/initialize_auth_middleware'),
 ])
-
 /**
  * Named middleware collection must be explicitly assigned to
  * the routes or the routes group.

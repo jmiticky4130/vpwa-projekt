@@ -24,7 +24,7 @@
               public: ch.public,
               private: !ch.public,
               active: ch.name === activeSlug,
-              'is-new': currentUser?.newchannels.includes(ch.name.toLowerCase()),
+              'is-new': false, // TODO: implement new channel indicator logic
             },
           ]"
         >
@@ -91,13 +91,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import type { Channel } from 'src/types/channel';
+import type { Channel } from 'src/contracts/Channel';
 import { useChannelStore } from 'src/stores/channel-store';
-import { useUserStore } from 'src/stores/user-store';
 import { storeToRefs } from 'pinia';
 import { useNotify } from 'src/util/notification';
+import { useAuthStore } from 'src/stores/auth-store';
 const {
   notifyJoinedChannel,
   notifyAlreadyMember,
@@ -112,12 +112,11 @@ const emit = defineEmits<{
 }>();
 
 const channelStore = useChannelStore();
-const userStore = useUserStore();
-const { currentUser } = storeToRefs(userStore);
+const { user: currentUser } = storeToRefs(useAuthStore());
 const channels = computed<Channel[]>(() => {
   const uid = currentUser.value?.id;
   if (uid == null) return [];
-  return channelStore.list({ userId: uid, newchannels: currentUser.value?.newchannels ?? [] });
+  return channelStore.list({ userId: uid, newchannels: [] }); // TODO must add new channels logic back later
 });
 
 const router = useRouter();
@@ -133,11 +132,20 @@ const nameRules = [
   (val: string) => !!(val && val.trim()) || 'Channel name is required',
   (val: string) => /^[-_a-zA-Z0-9]+$/.test(val) || 'Use letters, numbers, - or _ only',
   (val: string) => (val?.length ?? 0) >= 2 && (val?.length ?? 0) <= 30 || '2–30 characters',
-  (val: string) => {
-    const v = String(val || '').toLowerCase();
-    return !channelStore.channels.some((c) => c.name.toLowerCase() === v) || 'Channel already exists';
-  },
 ];
+
+onMounted(() => {
+  void channelStore.refresh()
+})
+
+watch(
+  () => currentUser.value?.id,
+  (id) => {
+    if (id != null) {
+      void channelStore.refresh()
+    }
+  }
+)
 
 function openCreateDialog() {
   newChannelName.value = '';
@@ -147,15 +155,13 @@ function openCreateDialog() {
 
 function onSelect(slug: string) {
   if (slug && slug !== 'Add new channel') {
-    const uid = currentUser.value?.id;
-    if (uid != null) userStore.clearNewChannel(uid, slug);
     emit('selected');
     void router.push({ name: 'channel', params: { slug } });
   }
 }
 
-function deleteChannel(name: string, uid: number | null) {
-  channelStore.removeChannel(name, uid);
+async function deleteChannel(name: string, uid: number | null) {
+  await channelStore.removeChannel(name, uid);
   void router.push({ path: '/' });
   notifyChannelDeleted(name);
 
@@ -179,7 +185,7 @@ async function createChannel() {
     }
     if (ch.public) {
       if (uid != null) {
-        channelStore.addMember(ch.name, uid);
+        await channelStore.addMember(ch.name);
       }
       await router.push({ name: 'channel', params: { slug: ch.name } });
       notifyJoinedChannel(ch.name);
@@ -190,24 +196,18 @@ async function createChannel() {
     return;
   }
 
-  const creatorId = currentUser.value?.id ?? 1;
-  const payload: Channel = {
-    id: 0,
+  const payload: {name: string, isPublic: boolean} = {
     name: newChannelName.value,
-    public: newChannelPublic.value,
-    creatorId,
-    members: [creatorId],
-    banned: [],
-    kickVotes: {},
+    isPublic: newChannelPublic.value,
   };
-  const created = channelStore.addChannel(payload);
+  const created = await channelStore.addChannel(payload);
 
   const uid = currentUser.value?.id;
   if (uid != null) {
-    channelStore.addMember(created.name, uid);
+    await channelStore.addMember(created?.name ?? '');
   }
-  onSelect(created.name);
-  notifyChannelCreated(created.name, created.public ? 'public' : 'private');
+  onSelect(created?.name ?? '');
+  notifyChannelCreated(created?.name ?? '', created?.public ? 'public' : 'private');
   showCreateDialog.value = false;
   return;
 }

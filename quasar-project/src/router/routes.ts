@@ -6,8 +6,8 @@ const routes: RouteRecordRaw[] = [
     component: () => import('layouts/MainLayout.vue'),
     children: [
       { path: '', component: () => import('pages/IndexPage.vue'), meta: { requiresAuth: true } },
-      { path: 'login', component: () => import('pages/LoginPage.vue'), meta: { guestOnly: true } },
-      { path: 'signup', component: () => import('pages/SignupPage.vue'), meta: { guestOnly: true } },
+  { path: 'login', name: 'login', component: () => import('pages/LoginPage.vue'), meta: { guestOnly: true } },
+  { path: 'signup', name: 'signup', component: () => import('pages/SignupPage.vue'), meta: { guestOnly: true } },
       {
         path: 'channels/:slug',
         name: 'channel',

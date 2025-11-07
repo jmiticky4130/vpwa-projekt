@@ -58,23 +58,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { useUserStore } from 'src/stores/user-store';
+import { useAuthStore } from 'src/stores/auth-store';
 
 const router = useRouter();
-const userStore = useUserStore();
+const auth = useAuthStore();
 
 const email = ref('');
 const password = ref('');
 const showPwd = ref(false);
-const loading = ref(false);
-const error = ref<string | null>(null);
+const loading = computed(() => auth.loading);
+const error = computed<string | null>(() => (auth.errors[0]?.message ?? null));
 const fieldErrors = ref<{ [k: string]: string | null }>({ email: null, password: null });
 
-function submit() {
-  loading.value = true;
-  error.value = null;
+async function submit() {
+  // reset auth errors
+  // (auth store resets on AUTH_START automatically when we call login)
 
   Object.keys(fieldErrors.value).forEach((k) => (fieldErrors.value[k] = null));
   const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -86,28 +86,15 @@ function submit() {
   }
   const hasFieldErrors = Object.values(fieldErrors.value).some((v) => !!v);
   if (hasFieldErrors) {
-    loading.value = false;
-    error.value = null;
     return;
   }
   try {
-    const found = userStore.findByEmail(email.value);
-    if (!found || found.password !== password.value) {
-      // attach generic invalid message to both fields so user sees where to fix
-      fieldErrors.value.email = 'Invalid email or password';
-      fieldErrors.value.password = 'Invalid email or password';
-      loading.value = false;
-      error.value = null;
-      return;
-    }
-    // persist session via user store
-    userStore.setCurrentUser(found);
+    await auth.login({ email: email.value, password: password.value });
+
     void router.push('/');
   } catch (e) {
     console.error('Login failed', e);
-    error.value = 'An unexpected error occurred';
-  } finally {
-    loading.value = false;
+    // auth store already captured errors; field errors stay as-is
   }
 }
 

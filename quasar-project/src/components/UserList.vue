@@ -32,10 +32,10 @@
 </template>
 
 <script setup lang="ts">
-import type { User } from 'src/types/user';
-import { useUserStore } from 'src/stores/user-store';
+import type { User } from 'src/contracts';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth-store';
 
 const props = defineProps<{ users: User[]; currentUserEmail?: string }>();
 
@@ -53,11 +53,11 @@ function colorFor(s: 'online' | 'dnd' | 'offline') {
   return 'grey-7';
 }
 
-const userStore = useUserStore();
+const auth = useAuthStore();
 const router = useRouter();
-const { currentUser } = storeToRefs(userStore);
-function onLogout() {
-  userStore.logout();
+const { user: currentUser } = storeToRefs(auth);
+async function onLogout() {
+  await auth.logout();
   void router.push('/login');
 }
 </script>

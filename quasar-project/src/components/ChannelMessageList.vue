@@ -61,8 +61,8 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, computed } from 'vue';
-import { useUserStore } from 'src/stores/user-store';
 import { storeToRefs } from 'pinia';
+import { useAuthStore } from 'src/stores/auth-store';
 
 type Message = {
   id: string;
@@ -95,37 +95,25 @@ const listEl = ref<HTMLElement | null>(null);
 const loadedCount = ref(0);
 const BATCH_SIZE = 20;
 
-const userStore = useUserStore();
-const { currentUser: cu } = storeToRefs(userStore);
-const userStatus = computed<'online' | 'dnd' | 'offline'>(() => cu.value?.status ?? 'online');
-const currentUserDisplay = computed(() => cu.value?.nickname ?? '');
-
-const storageKey = () => `chat:${props.channelKey}`;
+const { user } = storeToRefs(useAuthStore());
+// Basic mode: assume online since per-user status store was removed
+const userStatus = computed<'online' | 'dnd' | 'offline'>(() => 'online');
+const currentUserDisplay = computed(() => user.value?.nickname ?? '');
 
 function loadMessages() {
-  try {
-    const raw = localStorage.getItem(storageKey());
-    if (raw) {
-      allMessages.value = JSON.parse(raw) as Message[];
-    } else {
-      allMessages.value = [
-        {
-          id: `s-${Date.now()}-1`,
-          text: `Welcome to #${props.channelKey}!`,
-          state: 'sent',
-          name: 'System',
-          stamp: new Date().toLocaleTimeString(),
-        },
-      ];
-      persist();
-    }
-  } catch {
-    allMessages.value = [];
-  }
-
+  // LocalStorage persistence removed; initialize with a simple welcome message only in-memory
+  allMessages.value = [
+    {
+      id: `s-${Date.now()}-1`,
+      text: `Welcome to #${props.channelKey}!`,
+      state: 'sent',
+      name: 'System',
+      stamp: new Date().toLocaleTimeString(),
+    },
+  ];
   loadedCount.value = Math.min(BATCH_SIZE, allMessages.value.length);
   currMessages.value = allMessages.value.slice(allMessages.value.length - loadedCount.value);
-  console.log('Loaded messages:', allMessages.value.length, 'Showing:', loadedCount.value);
+  console.log('Loaded messages (non-persistent):', allMessages.value.length, 'Showing:', loadedCount.value);
   scrollToBottom();
 }
 
@@ -157,9 +145,7 @@ function loadMoreMessages(index: number, done: (stop?: boolean) => void) {
   }, 1000);
 }
 
-function persist() {
-  localStorage.setItem(storageKey(), JSON.stringify(allMessages.value));
-}
+// Persistence disabled - removed function
 
 function scrollToBottom() {
   void nextTick(() => {
@@ -187,7 +173,6 @@ function appendMessage(text: string, opts?: Partial<Message>) {
   }
   // Any new append clears the special bottom pin
   lastFinishedId.value = null;
-  persist();
 }
 
 function isOwn(m: Message) {
@@ -221,7 +206,6 @@ function togglePeekingMesage(id: string) {
     allMessages.value.splice(idx, 1, updated);
     const cidx = currMessages.value.findIndex((m) => m.id === id);
     if (cidx !== -1) currMessages.value.splice(cidx, 1, updated);
-    persist();
   }
 }
 // Simulate someone typing a message that appears after delay
@@ -240,7 +224,6 @@ function simulateTyping(author: string, finalText: string, delayMs = 5000) {
     loadedCount.value = Math.min(allMessages.value.length, loadedCount.value + 1);
     scrollToBottom();
   }
-  persist();
 
   // Resolve after delay
   setTimeout(() => {
@@ -262,7 +245,6 @@ function simulateTyping(author: string, finalText: string, delayMs = 5000) {
       stamp: new Date().toLocaleTimeString(),
     });
 
-    persist();
     scrollToBottom();
   }
 }, delayMs);

@@ -18,11 +18,20 @@ const shieldConfig = defineConfig({
   csrf: {
     enabled: true,
     exceptRoutes: [
-      '/api/users', // signup (auto login)
-      '/api/login',
-      '/api/logout',
-      '/api/tokens', // listing
-      '/api/tokens/:id', // deletion
+      '/auth/login',
+      '/auth/logout',
+      '/auth/register',
+      '/auth/me',
+      '/channel/create',
+      '/channel/delete',
+      '/channel/join',
+      '/channel/leave',
+      '/channel/list',
+      '/channel/privacy',
+      '/channel/revoke',
+      '/invites',
+      '/invites/create',
+      '/invites/respond',
     ],
     enableXsrfCookie: false,
     methods: ['POST', 'PUT', 'PATCH', 'DELETE'],

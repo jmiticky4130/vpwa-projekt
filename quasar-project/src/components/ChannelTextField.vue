@@ -17,35 +17,38 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useChannelStore } from 'src/stores/channel-store';
-import { useUserStore } from 'src/stores/user-store';
+import { useAuthStore } from 'src/stores/auth-store';
 import { useNotify } from 'src/util/notification';
 import { storeToRefs } from 'pinia';
-import type { Channel } from 'src/types/channel';
 
 const props = defineProps<{ channelName?: string }>();
-const emit = defineEmits<{ submit: [value: string]; system: [value: string] }>();
+const emit = defineEmits<{ submit: [value: string]; system: [value: string]; membersChanged: [] }>();
 const message = ref('');
 const placeholder = computed(() =>
   props.channelName ? `Message #${props.channelName}` : 'Type /join #channel to start or join one',
 );
 const router = useRouter();
 const channelStore = useChannelStore();
-const userStore = useUserStore();
-const { currentUser } = storeToRefs(userStore);
+const { user: currentUser } = storeToRefs(useAuthStore());
 const {
   notifyJoinedChannel,
   notifyAlreadyMember,
   notifyPrivateChannelBlocked,
+  notifyBannedCannotJoin,
   notifyChannelCreated,
   notifyCreatorOnlyPrivacy,
   notifyChannelAlreadyState,
   notifyChannelPrivacyUpdated,
+  notifyInviteNotAllowedPrivate,
   notifyChannelDeleted,
+  notifyLeftChannel,
+  notifyRevokeSuccess,
+  notifyRevokeNotCreator,
+  // notifyRevokeNotCreator, (unused after removing revoke command handling)
+  /*notifyChannelDeleted,
   notifyLeftChannel,
   notifyInviteSuccess,
   notifyRevokeSuccess,
-  notifyInviteNotAllowedPrivate,
-  notifyRevokeNotCreator,
   notifyUserNotFound,
   notifyAlreadyInChannel,
   notifyNotInChannel,
@@ -55,8 +58,7 @@ const {
   notifyKickVoteAdded,
   notifyKickVoteDuplicate,
   notifyKickedByAdmin,
-  notifyBannedCannotJoin,
-  notifyInviteBlockedBanned,
+  notifyInviteBlockedBanned,*/
 } = useNotify();
 
 type Command = {
@@ -126,7 +128,7 @@ async function handleCommand(cmd: Command) {
       }
       if (ch.public) {
         if (uid != null) {
-          channelStore.addMember(ch.name, uid);
+          await channelStore.addMember(ch.name);
         }
         await router.push({ name: 'channel', params: { slug: ch.name } });
         notifyJoinedChannel(ch.name);
@@ -135,25 +137,20 @@ async function handleCommand(cmd: Command) {
       }
       return;
     }
-
-    const creatorId = currentUser.value?.id ?? 1;
-    const payload: Channel = {
-      id: 0,
+    // If channel doesn't exist yet, create it as public by default.
+    const payload: { name: string; isPublic: boolean } = {
       name: targetName,
-      public: false,
-      creatorId,
-      members: [creatorId],
-      banned: [],
-      kickVotes: {},
+      isPublic: true,
     };
-    const created = channelStore.addChannel(payload);
-
+    const created = await channelStore.addChannel(payload);
+    if (!created) return;
     const uid = currentUser.value?.id;
     if (uid != null) {
-      channelStore.addMember(created.name, uid);
+      // Backend already attaches creator, but for safety refresh membership
+      await channelStore.addMember(created.name);
     }
     await router.push({ name: 'channel', params: { slug: created.name } });
-    notifyChannelCreated(created.name, created.public ? 'public' : 'private');
+    notifyChannelCreated(created.name, 'public');
     return;
   }
 
@@ -171,71 +168,78 @@ async function handleCommand(cmd: Command) {
       notifyChannelAlreadyState(targetPublic);
       return;
     }
-    channelStore.setPrivacy(ch.name, targetPublic);
+    await channelStore.setPrivacy(currentName, targetPublic);
     notifyChannelPrivacyUpdated(targetPublic);
     return;
   }
 
-  if (cmd.name === 'invite' || cmd.name === 'revoke') {
+  if (cmd.name === 'invite') {
     const currentName = props.channelName || '';
     if (!currentName) return;
     const ch = channelStore.findByName(currentName);
     if (!ch) return;
     const isCreator = currentUser.value?.id === ch.creatorId;
-    // For invite: allow if public OR creator; For revoke: only creator
-    if (cmd.name === 'invite' && !ch.public && !isCreator) {
+    if (!ch.public && !isCreator) {
       notifyInviteNotAllowedPrivate();
       return;
     }
-    if (cmd.name === 'revoke' && !isCreator) {
+    const identifierRaw = cmd.args.join(' ').trim();
+    if (!identifierRaw) return;
+    // Call invite store
+    const { useInviteStore } = await import('src/stores/invite-store');
+    const inviteStore = useInviteStore();
+    const ok = await inviteStore.sendInvite(ch.name.toLowerCase(), identifierRaw.replace(/^@/, ''));
+    if (ok) {
+      // Existing notification helper
+      const targetDisplay = identifierRaw.replace(/^@/, '');
+      // notifyInviteSuccess available but not currently destructured; dynamic import notification for success
+      const { useNotify } = await import('src/util/notification');
+      useNotify().notifyInviteSuccess(targetDisplay, ch.name);
+    }
+    return;
+  }
+
+  if (cmd.name === 'revoke') {
+    const currentName = props.channelName || '';
+    if (!currentName) return;
+    const ch = channelStore.findByName(currentName);
+    if (!ch) return;
+    const isCreator = currentUser.value?.id === ch.creatorId;
+    if (!isCreator) {
       notifyRevokeNotCreator();
       return;
     }
     const identifierRaw = cmd.args.join(' ').trim();
-    const identifier = identifierRaw.replace(/^@/, '');
-    const target = userStore.users.find(
-      (u) =>
-        u.nickname.toLowerCase() === identifier.toLowerCase() ||
-        u.email.toLowerCase() === identifier.toLowerCase(),
-    );
-    if (!target) {
-      notifyUserNotFound(identifier);
-      return;
+    if (!identifierRaw) return;
+    const nickname = identifierRaw.replace(/^@/, '');
+    const ok = await channelStore.revokeMember(ch.name.toLowerCase(), nickname);
+    if (ok) {
+      notifyRevokeSuccess(nickname, ch.name);
+      emit('membersChanged')
     }
-    const isMember = Array.isArray(ch.members) && ch.members.includes(target.id);
-    if (cmd.name === 'invite') {
-      if (isMember) {
-        notifyAlreadyInChannel(target.nickname, ch.name);
-        return;
-      }
-      const isBanned = channelStore.isBanned(ch.name, target.id);
-      if (isBanned && !isCreator) {
-        notifyInviteBlockedBanned(target.nickname, ch.name);
-        return;
-      }
-      if (isBanned && isCreator) {
-        channelStore.clearBan(ch.name, target.id);
-      }
-      channelStore.addMember(ch.name, target.id);
-      // Mark as new for target user so it floats to top
-      userStore.addNewChannel(target.id, ch.name);
-      notifyInviteSuccess(target.nickname, ch.name);
-      return;
-    } else {
-      if (!isMember) {
-        notifyNotInChannel(target.nickname, ch.name);
-        return;
-      }
-      if (target.id === ch.creatorId) {
-        notifyNotInChannel(target.nickname, ch.name);
-        return;
-      }
-      channelStore.removeMember(ch.name, target.id);
-      notifyRevokeSuccess(target.nickname, ch.name);
-      return;
-    }
+    return;
   }
 
+  if (cmd.name === 'quit' || cmd.name === 'cancel') {
+    const currentName = props.channelName || '';
+    if (!currentName) return;
+    const ch = channelStore.findByName(currentName);
+    const isCreator = ch && currentUser.value?.id != null && ch.creatorId === currentUser.value.id;
+    try {
+      await channelStore.removeMember(currentName);
+      if (isCreator) {
+        notifyChannelDeleted(currentName);
+      } else {
+        notifyLeftChannel(currentName);
+      }
+      await router.push({ path: '/' });
+    } catch {
+      // optional: show error notify
+    }
+    return;
+  }
+
+  /*
   if (cmd.name === 'kick') {
     const currentName = props.channelName || '';
     if (!currentName) return;
@@ -301,45 +305,8 @@ async function handleCommand(cmd: Command) {
   }
 
   if (cmd.name === 'list') {
-    const currentName = props.channelName || '';
-    if (!currentName) return;
-    const ch = channelStore.findByName(currentName);
-    if (!ch) return;
-    const ids = Array.isArray(ch.members) ? ch.members : [];
-    const names = userStore.users
-      .filter((u) => ids.includes(u.id))
-      .map((u) => u.nickname)
-      .sort((a, b) => a.localeCompare(b));
-    const text = names.length
-      ? `Members (${names.length}): ${names.join(', ')}`
-      : 'No members in this channel yet.';
-    emit('system', text);
     return;
-  }
-
-  if (cmd.name === 'quit' || cmd.name === 'cancel') {
-    const currentName = props.channelName || '';
-    if (!currentName) return;
-    const ch = channelStore.findByName(currentName);
-    const isCreator = currentUser.value?.id != null && ch?.creatorId === currentUser.value.id;
-    if (isCreator) {
-      // Remove stored messages for this channel as well
-      try {
-        const slug = currentName.toLowerCase();
-        localStorage.removeItem(`chat:${slug}`);
-      } catch {
-        console.log('Failed to remove channel messages from storage');
-      }
-  channelStore.removeChannel(currentName, currentUser.value?.id ?? null);
-      notifyChannelDeleted(currentName);
-      await router.push({ path: '/' });
-    } else {
-      const uid = currentUser.value?.id;
-      if (uid != null) channelStore.removeMember(currentName, uid);
-      notifyLeftChannel(currentName);
-      await router.push({ path: '/' });
-    }
-  }
+  }*/
 }
 
 async function submit() {
