@@ -1,150 +1,117 @@
-import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { defineStore } from 'pinia'
+import { authService, authManager } from 'src/services'
+import type { User, LoginCredentials, RegisterData, ApiToken } from 'src/contracts'
 
-interface UserShape {
-  id: number;
-  email: string;
-  nickname: string;
-  firstName: string;
-  lastName: string;
+export type AuthStatus = 'pending' | 'success' | 'error'
+
+export interface AuthError {
+  message: string
+  field?: string
 }
 
-interface AuthResponse {
-  user: UserShape;
-  token: { type: string; value: string; expiresIn: string };
-}
+export const useAuthStore = defineStore('auth', {
+  state: () => ({
+    user: null as User | null,
+    status: 'success' as AuthStatus,
+    errors: [] as AuthError[],
+  }),
 
-function saveToken(token: string | null) {
-  if (token) {
-    localStorage.setItem('auth_token', token);
-  } else {
-    localStorage.removeItem('auth_token');
-  }
-}
+  getters: {
+    /** True if user is logged in */
+    isAuthenticated: (state): boolean => state.user !== null,
+    /** True while request is in progress */
+    loading: (state): boolean => state.status === 'pending',
+  },
 
-async function api(path: string, options: RequestInit = {}) {
-  const token = localStorage.getItem('auth_token');
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-    ...(options.headers as Record<string, string> | undefined),
-  };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  actions: {
+    AUTH_START(): void {
+      this.status = 'pending'
+      this.errors = []
+    },
 
-  const res = await fetch(`/api${path}`, { ...options, headers });
+    AUTH_SUCCESS(user: User | null): void {
+      this.status = 'success'
+      if (user) {
+        // Append client-only defaults on successful auth fetch
+        this.user = {
+          ...user,
+          status: user.status ?? 'online',
+          showOnlyDirectedMessages: user.showOnlyDirectedMessages ?? false,
+          newchannels: Array.isArray(user.newchannels) ? user.newchannels : [],
+        }
+      } else {
+        this.user = null
+      }
+    },
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const message = body.message || 'Unknown error';
-    throw new Error(message);
-  }
+    AUTH_ERROR(errors: unknown): void {
+      this.status = 'error'
 
-  // Detect unexpected redirects (often validation redirect when Accept header missing)
-  if (res.type === 'basic' && res.redirected) {
-    throw new Error(
-      'Unexpected redirect (possible validation or CSRF redirect). Check server logs.',
-    );
-  }
-  if (res.status === 401) {
-    // let caller handle clearing if needed
-  }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`);
-  return data;
-}
+      if (Array.isArray(errors)) {
+        // array of { message, field? }
+        this.errors = errors.filter(
+          (e): e is AuthError =>
+            typeof e === 'object' && e !== null && 'message' in e
+        )
+      } else if (errors instanceof Error) {
+        this.errors = [{ message: errors.message }]
+      } else {
+        this.errors = [{ message: 'Unknown error' }]
+      }
+    },
 
+    /** Verify auth token & fetch current user */
+    async check(): Promise<boolean> {
+      try {
+        this.AUTH_START()
+        // Avoid triggering global logout on 401 to prevent router loops
+        const user = await authService.me(true)
+        this.AUTH_SUCCESS(user)
+        return user !== null
+      } catch (err: unknown) {
+        this.AUTH_ERROR(err)
+        throw err
+      }
+    },
 
-export const useAuthStore = defineStore('auth', () => {
-  const user = ref<UserShape | null>(null);
-  const token = ref<string | null>(localStorage.getItem('auth_token'));
-  const loading = ref(false);
-  const error = ref<string | null>(null);
+    /** Register a new user */
+    async register(form: RegisterData): Promise<User> {
+      try {
+        this.AUTH_START()
+        const user = await authService.register(form)
+        this.AUTH_SUCCESS(null)
+        return user
+      } catch (err: unknown) {
+        this.AUTH_ERROR(err)
+        throw err
+      }
+    },
 
-  function setSession(u: UserShape, t: string) {
-    user.value = u;
-    token.value = t;
-    saveToken(t);
-  }
+    /** Log in & save API token */
+    async login(credentials: LoginCredentials): Promise<ApiToken> {
+      try {
+        this.AUTH_START()
+        const apiToken = await authService.login(credentials)
+        this.AUTH_SUCCESS(null)
+        authManager.setToken(apiToken.token)
+        return apiToken
+      } catch (err: unknown) {
+        this.AUTH_ERROR(err)
+        throw err
+      }
+    },
 
-  function clearSession() {
-    user.value = null;
-    token.value = null;
-    saveToken(null);
-  }
-
-  async function signup(payload: {
-    email: string;
-    password: string;
-    nickname: string;
-    firstName: string;
-    lastName: string;
-  }) {
-    loading.value = true;
-    error.value = null;
-    try {
-      const data: AuthResponse = await api('/users', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      setSession(data.user, data.token.value);
-      return data.user;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      error.value = msg;
-      setTimeout(() => {
-        if (error.value === msg) error.value = null;
-      }, 3000);
-      return null;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function login(email: string, password: string) {
-    loading.value = true;
-    error.value = null;
-    try {
-      const data: AuthResponse = await api('/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-      setSession(data.user, data.token.value);
-      return data.user;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      error.value = msg;
-      setTimeout(() => {
-        if (error.value === msg) error.value = null;
-      }, 3000);
-      return null;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function fetchMe() {
-    if (!token.value) return null;
-    try {
-      const data = await api('/me');
-      user.value = data;
-      return data;
-    } catch {
-      // token invalid
-      clearSession();
-      return null;
-    }
-  }
-
-  async function logout() {
-    if (!token.value) return;
-    try {
-      await api('/logout', { method: 'POST' });
-    } catch {
-      // ignore
-    } finally {
-      clearSession();
-    }
-  }
-  
-  return { user, token, loading, error, signup, login, logout, fetchMe, clearSession };
-});
+    /** Log out & clear token */
+    async logout(): Promise<void> {
+      try {
+        this.AUTH_START()
+        await authService.logout()
+        this.AUTH_SUCCESS(null)
+        authManager.removeToken()
+      } catch (err: unknown) {
+        this.AUTH_ERROR(err)
+        throw err
+      }
+    },
+  },
+})

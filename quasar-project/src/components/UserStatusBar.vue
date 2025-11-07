@@ -72,24 +72,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeMount } from 'vue';
-import { useUserStore } from 'src/stores/user-store';
-import { storeToRefs } from 'pinia';
+import { computed, ref } from 'vue';
+// import { useAuthStore } from 'src/stores/auth-store';
 
-const userStore = useUserStore();
-const { currentUser } = storeToRefs(userStore);
+// With user-store removed, keep local UI state for status and directed-only toggle
+// Import available for future use (e.g., server-side status), but unused for now
+// const auth = useAuthStore();
+const statusRef = ref<'online' | 'dnd' | 'offline'>('online');
+const directedOnlyRef = ref<boolean>(false);
 
-const status = computed(() => currentUser.value?.status ?? 'online');
-const directedOnly = computed(() => currentUser.value?.showOnlyDirectedMessages ?? false);
+const status = computed(() => statusRef.value);
+const directedOnly = computed(() => directedOnlyRef.value);
 
 function setStatus(status: 'online' | 'dnd' | 'offline') {
-  userStore.setStatus(status);
+  statusRef.value = status;
 }
 function toggleShowOnlyDirectedMessages() {
-  if (currentUser.value) {
-    const newValue = !currentUser.value.showOnlyDirectedMessages;
-    userStore.setShowOnlyDirectedMessages(newValue);
-  }
+  directedOnlyRef.value = !directedOnlyRef.value;
 }
 
 function colorFor(s: 'online' | 'dnd' | 'offline' | 'directed') {
@@ -98,10 +97,6 @@ function colorFor(s: 'online' | 'dnd' | 'offline' | 'directed') {
   if (s === 'directed') return 'blue-6';
   return 'green-6';
 }
-
-onBeforeMount(() => {
-  userStore.setStatus('online');
-});
 </script>
 
 <style scoped>

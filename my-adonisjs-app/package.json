@@ -53,6 +53,7 @@
   "dependencies": {
     "@adonisjs/auth": "^9.4.0",
     "@adonisjs/core": "^6.18.0",
+    "@adonisjs/cors": "^2.2.1",
     "@adonisjs/lucid": "^21.6.1",
     "@adonisjs/session": "^7.5.1",
     "@adonisjs/shield": "^8.2.0",
@@ -62,7 +63,9 @@
     "edge.js": "^6.2.1",
     "luxon": "^3.7.2",
     "pg": "^8.16.3",
-    "reflect-metadata": "^0.2.2"
+    "phc-argon2": "^1.1.4",
+    "reflect-metadata": "^0.2.2",
+    "socket.io": "^4.8.1"
   },
   "hotHook": {
     "boundaries": [

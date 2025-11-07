@@ -1,131 +1,130 @@
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import channelsData from 'src/../channels.json';
-import type { Channel } from 'src/types/channel';
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+import type { Channel } from 'src/contracts/Channel'
+import channelService from 'src/services/ChannelService'
+import { useAuthStore } from './auth-store'
 
 export const useChannelStore = defineStore('channels', () => {
-  const loadInitial = (): Channel[] => {
-    return Array.isArray(channelsData) ? (channelsData as Channel[]) : [];
-  };
+  const channels = ref<Channel[]>([])
+  const loading = ref(false)
+  const error = ref<string | null>(null)
 
-  const loaded = loadInitial();
-  /*
-  // Ensure channels have members array; default to [creatorId]
-  const normalizedLoaded: Channel[] = loaded.map((c: Channel) => {
-    const members: number[] = Array.isArray(c.members)
-      ? c.members
-      : typeof c.creatorId === 'number'
-        ? [c.creatorId]
-        : [];
-    const banned: number[] = Array.isArray(c.banned) ? c.banned : [];
-    // Ensure kickVotes is a simple object mapping targetId(string) -> unique voterId array
-    const rawVotes = c.kickVotes || {};
-    const kickVotes: Record<string, number[]> = {};
-    for (const [k, v] of Object.entries(rawVotes)) {
-      const unique = Array.isArray(v) ? Array.from(new Set(v)) : [];
-      kickVotes[k] = unique;
-    }
-    return { ...c, members, banned, kickVotes };
-  });
-  */
+  const setError = (e: unknown) => {
+    if (e instanceof Error) error.value = e.message
+    else error.value = 'Unknown error'
+  }
 
-  const channels = ref<Channel[]>(loaded);
 
-  const persist = () => {
-    if (typeof window === 'undefined') return;
+  async function refresh(): Promise<void> {
+    loading.value = true
+    error.value = null
     try {
-      window.localStorage.setItem('channels', JSON.stringify(channels.value));
+      const list = await channelService.list()
+      console.log('Channel list refreshed:', list);
+      // Normalize optional fields
+      channels.value = list.map((c: Channel) => {
+        const banned = (c as unknown as { banned?: number[] }).banned ?? []
+        const kickVotes = (c as unknown as { kickVotes?: Record<string, number[]> }).kickVotes ?? ({} as Record<string, number[]>)
+        return {
+          ...c,
+          members: Array.isArray(c.members) ? c.members : [],
+          banned,
+          kickVotes,
+        }
+      })
     } catch (e) {
-      console.error(e);
+      setError(e)
+    } finally {
+      loading.value = false
     }
-  };
+  }
 
-  const nextId = computed(() => channels.value.reduce((m, v) => Math.max(m, v.id || 0), 0) + 1);
-
-  // Return only channels the user can access; if newchannels is provided, sort those to the top
-  function list(channelParams?: { userId?: number | null; newchannels?: string[] }) {
-    const userId = channelParams?.userId ?? null;
-    const newSet = new Set((channelParams?.newchannels ?? []).map((s) => s.toLowerCase()));
+  // Return only channels the current auth user can access; optional newchannels sorting retained
+  function list(params?: { userId?: number | null; newchannels?: string[] }) {
+    
+    const auth = useAuthStore()
+    const userId = params?.userId ?? auth.user?.id ?? null
+    const newSet = new Set((params?.newchannels ?? []).map((s) => s.toLowerCase()))
     return [...channels.value]
       .filter((c) => userId != null && Array.isArray(c.members) && c.members.includes(userId))
-      .sort((channelA, channelB) => {
-        const newChannelA = newSet.has(channelA.name.toLowerCase());
-        const newChannelB = newSet.has(channelB.name.toLowerCase());
-        if (newChannelA !== newChannelB) return newChannelB ? 1 : -1;
-        return channelA.name.localeCompare(channelB.name);
-      });
+      .sort((a, b) => {
+        const aNew = newSet.has(a.name.toLowerCase())
+        const bNew = newSet.has(b.name.toLowerCase())
+        if (aNew !== bNew) return bNew ? 1 : -1
+        return a.name.localeCompare(b.name)
+      })
   }
 
   function findByName(name: string): Channel | undefined {
     return channels.value.find((c) => c.name.toLowerCase() === name.toLowerCase());
   }
 
-  function addChannel(payload: Channel): Channel {
-    const exists = findByName(payload.name);
-    if (exists) return exists;
-    const id = typeof payload.id === 'number' && payload.id > 0 ? payload.id : nextId.value;
-    const members = Array.isArray(payload.members)
-      ? payload.members
-      : typeof payload.creatorId === 'number'
-        ? [payload.creatorId]
-        : [];
-    const ch: Channel = {
-      id,
-      name: payload.name,
-      public: payload.public,
-      creatorId: payload.creatorId,
-      members,
-      banned: Array.isArray(payload.banned) ? payload.banned : [],
-      kickVotes: payload.kickVotes ?? {},
-    };
-    channels.value.push(ch);
-    persist();
-    return ch;
-  }
-
-  function addMember(name: string, userId: number): boolean {
-    const ch = findByName(name);
-    if (!ch) return false;
-    if (ch.banned.includes(userId)) return false;
-    if (!ch.members.includes(userId)) {
-      ch.members.push(userId);
-      persist();
-      return true;
-    }
-    return false;
-  }
-
-  function removeMember(name: string, userId: number) {
-    const ch = findByName(name);
-    if (ch) {
-      const idx = ch.members.indexOf(userId);
-      if (idx >= 0) {
-        ch.members.splice(idx, 1);
-        persist();
-      }
+  async function addChannel(payload: { name: string; isPublic: boolean }): Promise<Channel | null> {
+    try {
+      const ch = await channelService.create(payload)
+      // Ensure it appears in list for current user
+      await refresh()
+      return ch
+    } catch (e) {
+      setError(e)
+      return null
     }
   }
 
-  function setPrivacy(name: string, isPublic: boolean) {
-    const ch = findByName(name);
-    if (ch) {
-      ch.public = isPublic;
-      persist();
+  async function addMember(name: string): Promise<boolean> {
+    try {
+      await channelService.join({ name })
+      await refresh()
+      return true
+    } catch (e) {
+      setError(e)
+      return false
     }
   }
 
-  function removeChannel(name: string, uid: number | null) {
-    if (uid == null) return;
-    const ch = findByName(name);
-    if (!ch) return;
-    if (ch.creatorId !== uid) return;
-    const idx = channels.value.findIndex((c) => c.name.toLowerCase() === name.toLowerCase());
-    if (idx >= 0) {
-      channels.value.splice(idx, 1);
-      persist();
+  async function removeMember(name: string) {
+    try {
+      await channelService.leave({ name })
+      await refresh()
+    } catch (e) {
+      setError(e)
     }
   }
 
+  async function revokeMember(name: string, nickname: string) {
+    try {
+      await channelService.revoke({ name, nickname })
+      await refresh()
+      return true
+    } catch (e) {
+      setError(e)
+      return false
+    }
+  }
+
+  async function setPrivacy(name: string, isPublic: boolean) {
+    try {
+      await channelService.setPrivacy({ name, public: isPublic })
+      await refresh()
+    } catch (e) {
+      setError(e)
+    }
+  }
+
+  async function removeChannel(name: string, uid: number | null) {
+    if (uid == null) return
+    const ch = findByName(name)
+    if (!ch) return
+    if (ch.creatorId !== uid) return
+    try {
+      await channelService.remove({ name })
+      await refresh()
+    } catch (e) {
+      setError(e)
+    }
+  }
+
+  // Not implemented in backend yet - legacy code
   function isBanned(name: string, userId: number): boolean {
     const ch = findByName(name);
     if (!ch) return false;
@@ -133,49 +132,56 @@ export const useChannelStore = defineStore('channels', () => {
     return banned.includes(userId);
   }
 
+  // Not implemented in backend yet - legacy code
   function banUser(name: string, targetUserId: number) {
     const ch = findByName(name);
     if (!ch) return;
     const idx = ch.members.indexOf(targetUserId);
     if (idx >= 0) ch.members.splice(idx, 1);
+    ch.banned = Array.isArray(ch.banned) ? ch.banned : []
     if (!ch.banned.includes(targetUserId)) ch.banned.push(targetUserId);
+    ch.kickVotes = ch.kickVotes ?? {}
     delete ch.kickVotes[String(targetUserId)];
-    persist();
   }
 
+  // Not implemented in backend yet - legacy code
   function clearBan(name: string, targetUserId: number) {
     const ch = findByName(name);
     if (!ch) return;
-    ch.banned = ch.banned.filter((id) => id !== targetUserId);
-    delete ch.kickVotes[String(targetUserId)];
-    persist();
+    ch.banned = (Array.isArray(ch.banned) ? ch.banned : []).filter((id) => id !== targetUserId);
+    if (ch.kickVotes) delete ch.kickVotes[String(targetUserId)];
   }
-
+  
+  // Not implemented in backend yet - legacy code
   function addKickVote(name: string, voterUserId: number, targetUserId: number): { added: boolean; count: number; thresholdReached: boolean } {
     const ch = findByName(name);
     const thresholdKick = 2;
     if (!ch) return { added: false, count: 0, thresholdReached: false };
     const key = String(targetUserId);
+    ch.kickVotes = ch.kickVotes ?? {}
     const arr = Array.isArray(ch.kickVotes[key]) ? ch.kickVotes[key] : [];
     const set = new Set(arr);
     const before = set.size;
     set.add(voterUserId);
     const after = set.size;
     ch.kickVotes[key] = Array.from(set);
-    persist();
     const count = ch.kickVotes[key].length;
     const thresholdReached = count >= thresholdKick;
     return { added: after > before, count, thresholdReached };
   }
 
   return {
-    channels,
+  channels,
+  loading,
+  error,
+  refresh,
     list,
     findByName,
     addChannel,
     setPrivacy,
     addMember,
     removeMember,
+    revokeMember,
     removeChannel,
     isBanned,
     banUser,

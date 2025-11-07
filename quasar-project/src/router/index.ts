@@ -6,8 +6,10 @@ import {
   createWebHistory,
 } from 'vue-router';
 import routes from './routes';
-import { useUserStore } from 'src/stores/user-store';
-import { useChannelStore } from 'src/stores/channel-store';
+
+import { authManager } from 'src/services'
+import { useAuthStore } from 'src/stores/auth-store'
+import { useChannelStore } from 'src/stores/channel-store'
 
 /*
  * If not building with SSR mode, you can
@@ -18,7 +20,7 @@ import { useChannelStore } from 'src/stores/channel-store';
  * with the Router instance.
  */
 
-export default defineRouter(function ({ store /*, ssrContext */ }) {
+export default defineRouter(function () {
   const createHistory = process.env.SERVER
     ? createMemoryHistory
     : process.env.VUE_ROUTER_MODE === 'history'
@@ -35,31 +37,61 @@ export default defineRouter(function ({ store /*, ssrContext */ }) {
     history: createHistory(process.env.VUE_ROUTER_BASE),
   });
 
-  Router.beforeEach((to) => {
+  Router.beforeEach(async (to) => {
     // Use Pinia store for auth state (in-memory only)
-    const userStore = useUserStore(store);
-    const isAuthenticated = !!userStore.currentUser;
+    const auth = useAuthStore()
+    const channelStore = useChannelStore()
+    const hasToken = authManager.getToken() !== null
+    let isAuthenticated = false
+    if (to.meta.requiresAuth && !hasToken) {
+      return { path: '/login', query: { redirect: to.fullPath } };
+    }
+
+    if (hasToken) {
+      try {
+        isAuthenticated = await auth.check()
+      } catch {
+        isAuthenticated = false
+      }
+    }
 
     if (to.meta.requiresAuth && !isAuthenticated) {
       return { path: '/login', query: { redirect: to.fullPath } };
     }
+
     if (to.meta.guestOnly && isAuthenticated) {
       return { path: '/' };
     }
 
     // Channel membership enforcement: only members can access specific channels
     if (to.name === 'channel') {
-      const channelStore = useChannelStore(store)
       const slug = String(to.params.slug || '').toLowerCase()
-      const ch = channelStore.findByName(slug)
-      // If channel exists, ensure current user is a member
-      if (ch) {
-        const uid = userStore.currentUser?.id
-        const members = Array.isArray(ch.members) ? ch.members : []
-        if (uid == null || !members.includes(uid)) {
-          return { path: '/' }
+      const uid = auth.user?.id ?? null
+      if (uid == null) return { path: '/' }
+
+      // Ensure channels are available for verification
+      if (!channelStore.loading && channelStore.channels.length === 0) {
+        try {
+          await channelStore.refresh()
+        } catch {
+          // ignore errors here; the guard will redirect if membership cannot be confirmed
         }
       }
+
+      let ch = channelStore.findByName(slug)
+      // If not found, try one more refresh (in case of stale state)
+      if (!ch && !channelStore.loading) {
+        try {
+          await channelStore.refresh();
+          ch = channelStore.findByName(slug)
+        } catch {
+          // ignore errors here as well
+        }
+      }
+
+      if (!ch) return { path: '/' }
+      const members = Array.isArray(ch.members) ? ch.members : []
+      if (!members.includes(uid)) return { path: '/' }
     }
     return true;
   });

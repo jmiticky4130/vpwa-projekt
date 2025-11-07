@@ -82,12 +82,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { reactive, ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { useUserStore } from 'src/stores/user-store';
+import { useAuthStore } from 'src/stores/auth-store';
 
 const router = useRouter();
-const userStore = useUserStore();
+const auth = useAuthStore();
 
 const form = reactive({
   nickname: '',
@@ -97,8 +97,9 @@ const form = reactive({
   password: '',
 });
 const showPwd = ref(false);
-const loading = ref(false);
-const error = ref<string | null>(null);
+// Use auth-store state
+const loading = computed(() => auth.loading);
+const error = computed<string | null>(() => (auth.errors[0]?.message ?? null));
 const fieldErrors = ref<{ [k: string]: string | null }>({
   nickname: null,
   firstName: null,
@@ -107,9 +108,7 @@ const fieldErrors = ref<{ [k: string]: string | null }>({
   password: null,
 });
 
-function submit() {
-  loading.value = true;
-  error.value = null;
+async function submit() {
   // reset field errors
   Object.keys(fieldErrors.value).forEach((k) => (fieldErrors.value[k] = null));
   // basic client-side validation
@@ -131,33 +130,25 @@ function submit() {
   }
   const hasFieldErrors = Object.values(fieldErrors.value).some((v) => !!v);
   if (hasFieldErrors) {
-    loading.value = false;
-    error.value = null;
     return;
   }
   try {
-    const existing = userStore.findByEmail(form.email);
-    if (existing) {
-      fieldErrors.value.email = 'Email already in use';
-      loading.value = false;
-      error.value = null;
-      return;
-    }
-    const newUser = userStore.createUser({
+    // 1) Register user
+    await auth.register({
+      email: form.email,
       nickname: form.nickname,
       firstName: form.firstName,
       lastName: form.lastName,
-      email: form.email,
       password: form.password,
     });
 
-    userStore.setCurrentUser(newUser);
-    void router.push('/');
+    // 2) Auto-login to obtain API token and store it
+    await auth.login({ email: form.email, password: form.password });
+
+    await router.push('/');
+
   } catch (e) {
     console.error('Signup failed', e);
-    error.value = 'An unexpected error occurred';
-  } finally {
-    loading.value = false;
   }
 }
 

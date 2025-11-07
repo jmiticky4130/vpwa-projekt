@@ -63,22 +63,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import ChannelNavigation from 'src/components/ChannelNavigation.vue';
 import UserStatusBar from 'src/components/UserStatusBar.vue';
 import UserList from 'src/components/UserList.vue';
-import { useUserStore } from 'src/stores/user-store';
+import { useAuthStore } from 'src/stores/auth-store';
 import { useChannelStore } from 'src/stores/channel-store';
 import { storeToRefs } from 'pinia';
-import type { User } from 'src/types/user';
+import type { User } from 'src/contracts';
+import usersService from 'src/services/UsersService';
 
 const router = useRouter();
 const route = useRoute();
-const userStore = useUserStore();
+const auth = useAuthStore();
 const channelStore = useChannelStore();
-const { currentUser } = storeToRefs(userStore);
-
+const { user: currentUser } = storeToRefs(auth);
 const mobileTab = ref<'channels' | 'chat' | 'members'>('chat');
 
 // Current channel + users for Members tab
@@ -86,12 +86,20 @@ const currentChannel = computed(() => {
   const slug = String(route.params.slug || '').toLowerCase();
   return channelStore.channels.find((c) => c.name.toLowerCase() === slug);
 });
-const channelUsers = computed<User[]>(() => {
-  const ch = currentChannel.value;
-  if (!ch) return [] as User[];
-  const ids = Array.isArray(ch.members) ? ch.members : [];
-  return userStore.users.filter((u) => ids.includes(u.id));
-});
+const channelUsers = ref<User[]>([]);
+watch(
+  () => currentChannel.value?.id,
+  async (id) => {
+    channelUsers.value = []
+    if (!id) return
+    try {
+      channelUsers.value = await usersService.getByChannel(id)
+    } catch (e) {
+      console.warn('Failed to load channel users in layout', e)
+    }
+  },
+  { immediate: true }
+)
 const currentUserEmail = computed(() => currentUser.value?.email ?? '');
 
 function goHome() {
@@ -103,10 +111,11 @@ function goLogin() {
 function goSignup() {
   void router.push('/signup');
 }
-function logout() {
-  userStore.logout();
-  void router.push('/login');
+async function logout() {
+  await auth.logout();
+  void router.replace({ path: '/login', query: { redirect: route.fullPath } });
 }
+
 </script>
 
 <style scoped>

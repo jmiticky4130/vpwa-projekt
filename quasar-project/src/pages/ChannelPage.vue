@@ -25,28 +25,30 @@
             flat
             class="q-ml-xs"
           />
-          <q-btn
-            @click="simulateAliceTyping()"
-            color="secondary"
-            label="Simulate typing"
-            dense
-            flat
-            class="q-ml-xs"
-          />
           <h4 class="q-ma-none text-white ellipsis">{{ channel.name }}</h4>
         </header>
         <div class="channel-sub text-grey-5" v-if="channel">
           You are viewing <strong>{{ channel.name }}</strong>
         </div>
         <div class="messages-wrapper">
-          <ChannelMessageList ref="msgListRef" :channel-key="channelKey" />
+          <!-- ChannelMessageList hidden/unused by request -->
         </div>
       </div>
-      <UserList
-        class="user-list-panel"
-        :users="channelUsers"
-        :current-user-email="currentUserEmail"
-      />
+      <div class="user-list-panel column">
+        <div class="row q-pa-sm q-gutter-sm">
+          <q-btn-toggle
+            v-model="panelMode"
+            toggle-color="primary"
+            color="white"
+            dense
+            :options="[
+              {label: 'Users', value: 'users'},
+              {label: 'Invites', value: 'invites'}
+            ]"
+          />
+        </div>
+        <component :is="panelComponent" v-bind="panelProps" class="col" />
+      </div>
     </div>
     <div class="absolute-bottom full-width">
       <ChannelTextField
@@ -54,22 +56,26 @@
         :channelName="channel.name"
         @submit="handleSubmit"
         @system="handleSystem"
+        @membersChanged="refreshChannelUsers"
       />
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import ChannelTextField from 'src/components/ChannelTextField.vue';
-import ChannelMessageList from 'src/components/ChannelMessageList.vue';
 import UserList from 'src/components/UserList.vue';
-import { useUserStore } from 'src/stores/user-store';
+import InviteList from 'src/components/InviteList.vue';
+import { useAuthStore } from 'src/stores/auth-store';
 import { storeToRefs } from 'pinia';
 import { useNotify } from 'src/util/notification';
 import { useChannelStore } from 'src/stores/channel-store';
-import type { Channel } from 'src/types/channel';
+import type { Channel } from 'src/contracts/Channel';
+import type { User } from 'src/contracts';
+import usersService from '../services/UsersService';
+import messagesService from '../services/MessagesService';
 
 const { notifyMessage } = useNotify();
 const route = useRoute();
@@ -80,9 +86,7 @@ const channel = computed<Channel | undefined>(() => {
   return channelStore.channels.find((c) => c.name.toLowerCase() === slug);
 });
 
-const channelKey = computed(() => (channel.value ? channel.value.name.toLowerCase() : ''));
-
-const msgListRef = ref<InstanceType<typeof ChannelMessageList> | null>(null);
+// const channelKey = computed(() => (channel.value ? channel.value.name.toLowerCase() : ''));
 
 async function onNotify(directed: boolean) {
   await notifyMessage(
@@ -92,38 +96,57 @@ async function onNotify(directed: boolean) {
   );
 }
 
-function simulateAliceTyping() {
-  const author = 'alice';
-  const finalText = 'Hey there! This is a message that im writing hello hello hellohellohellohello';
-  msgListRef.value?.simulateTyping(author, finalText);
-}
+// Message list disabled; simulate typing removed
 
-const userStore = useUserStore();
-const { currentUser } = storeToRefs(userStore);
+const auth = useAuthStore();
+const { user: currentUser } = storeToRefs(auth);
 const currentUserDisplay = computed(() => currentUser.value?.nickname ?? '');
 const currentUserEmail = computed(() => currentUser.value?.email ?? '');
 
 const channelCreatorLabel = computed(() => {
   const ch = channel.value;
   if (!ch || ch.creatorId == null) return '';
-  const creator = userStore.users.find((u) => u.id === ch.creatorId);
+  const creator = channelUsers.value.find((u) => u.id === ch.creatorId);
   return creator ? creator.nickname : String(ch.creatorId);
 });
 
-const channelUsers = computed(() => {
-  const ch = channel.value;
-  if (!ch) return [];
-  const ids = Array.isArray(ch.members) ? ch.members : [];
-  return userStore.users.filter((u) => ids.includes(u.id));
-});
+const channelUsers = ref<User[]>([]);
+const panelMode = ref<'users' | 'invites'>('users')
+const panelComponent = computed(() => (panelMode.value === 'users' ? UserList : InviteList))
+const panelProps = computed(() => {
+  return panelMode.value === 'users'
+    ? { users: channelUsers.value, currentUserEmail: currentUserEmail.value }
+    : {}
+})
 
-function handleSubmit(value: string) {
-  msgListRef.value?.appendMessage(value, { name: currentUserDisplay.value, state: 'sent' });
+watch(
+  () => channel.value?.id,
+  async (id) => {
+    channelUsers.value = []
+    if (!id) return
+    await refreshChannelUsers()
+  },
+  { immediate: true }
+)
+
+
+async function refreshChannelUsers() {
+  const id = channel.value?.id
+  if (!id) return
+  try {
+    const list = await usersService.getByChannel(id)
+    channelUsers.value = list
+    // Fetch messages lazily on channel open (integration with UI can be added later)
+    void messagesService.getByChannel(id)
+  } catch (e) {
+    console.warn('Failed to load channel users', e)
+  }
 }
 
-function handleSystem(value: string) {
-  msgListRef.value?.appendMessage(value, { name: 'System', state: 'sent' });
-}
+
+function handleSubmit() { /* no-op while message list disabled */ }
+
+function handleSystem() { /* no-op while message list disabled */ }
 </script>
 
 <style scoped>

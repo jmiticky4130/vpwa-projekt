@@ -1,21 +1,21 @@
 import { DateTime } from 'luxon'
+import { BaseModel, column, hasMany, manyToMany } from '@adonisjs/lucid/orm'
+import type { HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
+import { withAuthFinder } from '@adonisjs/auth/mixins/lucid'
 import hash from '@adonisjs/core/services/hash'
 import { compose } from '@adonisjs/core/helpers'
-import { BaseModel, column } from '@adonisjs/lucid/orm'
-import { withAuthFinder } from '@adonisjs/auth/mixins/lucid'
+import Message from '#models/message'
+import Channel from '#models/channel'
 import { DbAccessTokensProvider } from '@adonisjs/auth/access_tokens'
 
 const AuthFinder = withAuthFinder(() => hash.use('scrypt'), {
   uids: ['email'],
-  passwordColumnName: 'password',
+  passwordColumnName: 'passwordHash',
 })
 
 export default class User extends compose(BaseModel, AuthFinder) {
   @column({ isPrimary: true })
   declare id: number
-
-  @column({ columnName: 'nickname' })
-  declare nickname: string
 
   @column({ columnName: 'first_name' })
   declare firstName: string
@@ -24,16 +24,28 @@ export default class User extends compose(BaseModel, AuthFinder) {
   declare lastName: string
 
   @column()
+  declare nickname: string
+
+  @column()
   declare email: string
 
-  @column({ serializeAs: null })
-  declare password: string
+  @column({ columnName: 'password_hash', serializeAs: null })
+  declare passwordHash: string
 
-  @column.dateTime({ autoCreate: true })
+  @column.dateTime({ columnName: 'created_at', autoCreate: true })
   declare createdAt: DateTime
 
-  @column.dateTime({ autoCreate: true, autoUpdate: true })
-  declare updatedAt: DateTime | null
+  // Relations
+  @hasMany(() => Message, { foreignKey: 'authorId' })
+  declare sentMessages: HasMany<typeof Message>
+
+  @manyToMany(() => Channel, {
+    pivotTable: 'memberships',
+    pivotForeignKey: 'user_id',
+    pivotRelatedForeignKey: 'channel_id',
+    pivotColumns: ['is_kicked', 'is_banned', 'joined_at'],
+  })
+  declare channels: ManyToMany<typeof Channel>
 
   static accessTokens = DbAccessTokensProvider.forModel(User)
 }

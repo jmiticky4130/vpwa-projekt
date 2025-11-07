@@ -1,9 +1,10 @@
 import { useRouter } from 'vue-router';
-import { useUserStore } from 'src/stores/user-store';
-import { storeToRefs } from 'pinia';
+//import { storeToRefs } from 'pinia';
 import { Notify } from 'quasar';
 import { AppVisibility } from 'quasar';
 import { Screen } from 'quasar';
+//import { computed } from 'vue/dist/vue.js';
+//import { useAuthStore } from 'src/stores/auth-store';
 
 Notify.setDefaults({
   position: Screen.lt.sm ? 'top' : 'bottom-right',
@@ -15,11 +16,12 @@ function delay(ms: number) {
 
 export function useNotify() {
   const router = useRouter();
-  const userStore = useUserStore();
-  const { currentUser } = storeToRefs(userStore);
+
+  //const authStore = storeToRefs(useAuthStore());
+  //const currentUser = computed(() => authStore.user.value);
 
   function shouldNotify(rawMessage?: string) {
-    const status = currentUser.value?.status ?? 'online';
+   /* const status = currentUser.value?.status ?? 'online';
     if (status === 'dnd') return false;
 
     const onlyDirected = currentUser.value?.showOnlyDirectedMessages ?? false;
@@ -27,8 +29,9 @@ export function useNotify() {
 
     const nick = currentUser.value?.nickname?.trim();
     if (!nick || !rawMessage) return false;
-    const mention = `@${nick}`;
-    return rawMessage.includes(mention);
+    const mention = `@${nick}`;*/
+    //return rawMessage.includes(mention);
+    return true;
   }
 
   async function notifySystemMessage(title: string, body: string, channelSlug: string) {
