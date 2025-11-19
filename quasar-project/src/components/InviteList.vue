@@ -11,7 +11,7 @@
     <div v-else-if="error" class="text-negative q-pa-sm">
       {{ error }}
     </div>
-    <div v-else>
+    <div v-else class="invite-list-scroll">
       <q-list bordered separator class="bg-transparent">
         <template v-if="invites.length">
           <q-item v-for="inv in invites" :key="inv.id" clickable class="invite-row">
@@ -44,7 +44,7 @@ import { useChannelStore } from 'src/stores/channel-store'
 
 const inviteStore = useInviteStore()
 const channelStore = useChannelStore()
-const { notifyJoinedChannel, notifyChannelCreated } = useNotify()
+const { notifyJoinedChannel } = useNotify()
 
 const invites = computed(() => inviteStore.invites)
 const loading = computed(() => inviteStore.loading)
@@ -81,10 +81,14 @@ onMounted(() => {
 
 <style scoped>
 .invite-list-root {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
+}
+.invite-list-scroll {
+  overflow-y: auto;
   flex: 1;
-  min-height: 0;
 }
 .invite-row {
   background: rgba(255,255,255,0.04);

@@ -1,5 +1,5 @@
 <template>
-  <div class="user-list-wrapper bg-grey-10">
+  <div class="user-list-wrapper">
     <q-list bordered class="rounded-borders user-list">
       <q-item v-if="currentUser && ($q.screen.xs || $q.screen.sm)" class="q-py-sm">
         <q-item-section>
@@ -65,14 +65,13 @@ async function onLogout() {
 <style scoped>
 .user-list-wrapper {
   width: 100%;
-  flex: 0 0 auto;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  max-height: 100%;
 }
 .user-list {
   overflow-y: auto;
-  max-height: 100%;
+  flex: 1;
 }
 .you-pill {
   font-size: 11px;

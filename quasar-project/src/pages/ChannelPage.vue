@@ -34,20 +34,24 @@
           <!-- ChannelMessageList hidden/unused by request -->
         </div>
       </div>
-      <div class="user-list-panel column">
-        <div class="row q-pa-sm q-gutter-sm">
+      <div class="user-list-panel column bg-grey-10">
+        <div class="q-pa-sm">
           <q-btn-toggle
             v-model="panelMode"
+            spread
+            no-caps
             toggle-color="primary"
-            color="white"
-            dense
+            color="grey-9"
+            text-color="white"
             :options="[
               {label: 'Users', value: 'users'},
               {label: 'Invites', value: 'invites'}
             ]"
           />
         </div>
-        <component :is="panelComponent" v-bind="panelProps" class="col" />
+        <div class="col relative-position">
+          <component :is="panelComponent" v-bind="panelProps" class="absolute-full" />
+        </div>
       </div>
     </div>
     <div class="absolute-bottom full-width">

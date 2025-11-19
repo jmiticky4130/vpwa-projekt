@@ -14,7 +14,6 @@ export const useChannelStore = defineStore('channels', () => {
     else error.value = 'Unknown error'
   }
 
-
   async function refresh(): Promise<void> {
     loading.value = true
     error.value = null
