@@ -38,12 +38,27 @@ export default class AuthController {
     console.log('Attempting login for email:', email)
     const user = await User.verifyCredentials(email, password)
     console.log('User authenticated:', user)
-    const token = await auth.use('api').createToken(user, [], {
+    const created = await auth.use('api').createToken(user, [], {
       name: 'api-token',
       expiresIn: '7 days',
     })
-    console.log('Token created, sending:', token)
-    return token
+    // Extract raw token string from possible shapes
+    const rawToken: string = (() => {
+      const anyCreated: any = created
+      if (typeof anyCreated.token === 'string') return anyCreated.token
+      if (anyCreated.token?.release) return anyCreated.token.release()
+      if (anyCreated.value?.release) return anyCreated.value.release()
+      if (typeof anyCreated.value === 'string') return anyCreated.value
+      return String(anyCreated.token || anyCreated.value)
+    })()
+    const response = {
+      type: (created as any).type ?? 'bearer',
+      token: rawToken,
+      expires_at: (created as any).expiresAt?.toISO?.(),
+      expires_in: (created as any).expiresIn,
+    }
+    console.log('Token created (preview):', rawToken.slice(0, 10) + '...')
+    return response
   }
 
   async logout({ auth }: HttpContext) {

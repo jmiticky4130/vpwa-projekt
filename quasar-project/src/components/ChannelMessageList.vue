@@ -41,12 +41,12 @@
           dense
         >
           <template v-if="m.state === 'typing'">
-            <div @click="togglePeekingMesage(m.id)">
+            <div @click="togglePeekingMesage()">
               <q-spinner-dots size="2rem" />
             </div>
           </template>
           <template v-else-if="m.state === 'peeking'">
-            <div @click="togglePeekingMesage(m.id)">
+            <div @click="togglePeekingMesage()">
               hello, this is current typed message preview
             </div>
           </template>
@@ -60,9 +60,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, computed } from 'vue';
+import { ref, nextTick, computed, onMounted, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from 'src/stores/auth-store';
+import { useMessageStore } from 'src/stores/message-store';
+import type { SerializedMessage } from 'src/contracts';
 
 type Message = {
   id: string;
@@ -73,76 +75,35 @@ type Message = {
 };
 
 const props = defineProps<{ channelKey: string }>();
-const allMessages = ref<Message[]>([]);
-const currMessages = ref<Message[]>([]);
-// Track the last message that transitioned from typing->sent so it can be shown as the absolute bottom item
-const lastFinishedId = ref<string | null>(null);
+// Pinia message store
+const messageStore = useMessageStore();
+
+// Map backend messages to UI message type expected by q-chat-message
+function toViewMessage(m: SerializedMessage): Message {
+  return {
+    id: String(m.id),
+    text: m.body,
+    name: m.author?.nickname ?? 'Unknown',
+    stamp: new Date(m.createdAt).toLocaleTimeString(),
+    state: 'sent',
+  };
+}
+
 const displayedMessages = computed<Message[]>(() => {
-  const live = currMessages.value.filter((m) => m.state === 'typing' || m.state === 'peeking');
-  const last = lastFinishedId.value
-    ? currMessages.value.filter((m) => m.id === lastFinishedId.value)
-    : ([] as Message[]);
-  const rest = currMessages.value.filter(
-    (m) =>
-      m.state !== 'typing' &&
-      m.state !== 'peeking' &&
-      (lastFinishedId.value ? m.id !== lastFinishedId.value : true),
-  );
-  // Order: normal sent messages, then live typing/peeking, and finally the just-finished message
-  return [...rest, ...live, ...last];
+  const arr = messageStore.messages[props.channelKey] || [];
+  return arr.map(toViewMessage);
 });
 const listEl = ref<HTMLElement | null>(null);
-const loadedCount = ref(0);
-const BATCH_SIZE = 20;
+// Infinite scroll paging disabled for now (server returns full list)
 
 const { user } = storeToRefs(useAuthStore());
 // Basic mode: assume online since per-user status store was removed
 const userStatus = computed<'online' | 'dnd' | 'offline'>(() => 'online');
 const currentUserDisplay = computed(() => user.value?.nickname ?? '');
 
-function loadMessages() {
-  // LocalStorage persistence removed; initialize with a simple welcome message only in-memory
-  allMessages.value = [
-    {
-      id: `s-${Date.now()}-1`,
-      text: `Welcome to #${props.channelKey}!`,
-      state: 'sent',
-      name: 'System',
-      stamp: new Date().toLocaleTimeString(),
-    },
-  ];
-  loadedCount.value = Math.min(BATCH_SIZE, allMessages.value.length);
-  currMessages.value = allMessages.value.slice(allMessages.value.length - loadedCount.value);
-  console.log('Loaded messages (non-persistent):', allMessages.value.length, 'Showing:', loadedCount.value);
-  scrollToBottom();
-}
-
-function loadMoreMessages(index: number, done: (stop?: boolean) => void) {
-  console.log('Request to load more messages');
-  if (userStatus.value === 'offline') {
-    done(true);
-    return;
-  }
-  // Simulate async fetch delay
-  setTimeout(() => {
-    const remaining = allMessages.value.length - loadedCount.value;
-    if (remaining <= 0) {
-      console.log('No more messages to load');
-      done(true);
-      return;
-    }
-    console.log(`Loading more messages, ${remaining} remaining`);
-
-    const take = Math.min(BATCH_SIZE, remaining);
-    const start = allMessages.value.length - loadedCount.value - take;
-    const end = allMessages.value.length - loadedCount.value;
-    const older = allMessages.value.slice(Math.max(0, start), Math.max(0, end));
-
-    // Prepend older messages to current view without altering allMessages
-    currMessages.value = [...older, ...currMessages.value];
-    loadedCount.value += older.length;
-    done();
-  }, 1000);
+function loadMoreMessages(_index: number, done: (stop?: boolean) => void) {
+  // Backend currently returns full list; disable further loads
+  done(true);
 }
 
 // Persistence disabled - removed function
@@ -156,23 +117,14 @@ function scrollToBottom() {
   });
 }
 
-function appendMessage(text: string, opts?: Partial<Message>) {
-  const msg: Message = {
-    id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    text,
-    state: 'sent',
-    name: opts?.name ?? (currentUserDisplay.value || 'Anonymous'),
-    stamp: new Date().toLocaleTimeString(),
-    ...opts,
-  };
-  allMessages.value.push(msg);
-  if (userStatus.value !== 'offline') {
-    currMessages.value = [...currMessages.value, msg];
-    loadedCount.value = Math.min(allMessages.value.length, loadedCount.value + 1);
+async function appendMessage(text: string) {
+  try {
+    await messageStore.addMessage({ channel: props.channelKey, message: text });
+    // The incoming echo (via websocket 'message') updates the store and UI
     scrollToBottom();
+  } catch (e) {
+    console.error('Failed to send message:', e);
   }
-  // Any new append clears the special bottom pin
-  lastFinishedId.value = null;
 }
 
 function isOwn(m: Message) {
@@ -192,81 +144,26 @@ function isDirectedToCurrentUser(m: Message) {
   return false;
 }
 
-function togglePeekingMesage(id: string) {
-  const idx = allMessages.value.findIndex((m) => m.id === id);
-  if (idx !== -1) {
-    const base = allMessages.value[idx]!;
-    const updated: Message = {
-      id: base.id,
-      state: base.state === 'peeking' ? 'typing' : 'peeking',
-      name: base.name,
-      text: base.text,
-      stamp: base.stamp,
-    };
-    allMessages.value.splice(idx, 1, updated);
-    const cidx = currMessages.value.findIndex((m) => m.id === id);
-    if (cidx !== -1) currMessages.value.splice(cidx, 1, updated);
-  }
+function togglePeekingMesage() {
+  // Typing/peeking demo disabled when using server-driven messages
 }
 // Simulate someone typing a message that appears after delay
-function simulateTyping(author: string, finalText: string, delayMs = 5000) {
-  const id = `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  const msg: Message = {
-    id,
-    text: '',
-    state: 'typing',
-    name: author,
-    stamp: new Date().toLocaleTimeString(),
-  };
-  allMessages.value.push(msg);
-  if (userStatus.value !== 'offline') {
-    currMessages.value = [...currMessages.value, msg];
-    loadedCount.value = Math.min(allMessages.value.length, loadedCount.value + 1);
-    scrollToBottom();
-  }
-
-  // Resolve after delay
-  setTimeout(() => {
-  const idx = allMessages.value.findIndex((m) => m.id === id);
-  if (idx !== -1) {
-    const base = allMessages.value[idx]!;
-
-    allMessages.value.splice(idx, 1);
-    const cidx = currMessages.value.findIndex((m) => m.id === id);
-    if (cidx !== -1) {
-      currMessages.value.splice(cidx, 1);
-    }
-
-    // Append the final message so it ends up at the bottom
-    appendMessage(finalText, {
-      id: base.id,
-      state: 'sent',
-      name: base.name,
-      stamp: new Date().toLocaleTimeString(),
-    });
-
-    scrollToBottom();
-  }
-}, delayMs);
+function simulateTyping() {
+  // No-op in server-driven mode
 }
 
 defineExpose({ appendMessage, simulateTyping });
 
+// When the list is first shown or the channel changes,
+// scroll to the bottom so the newest messages are visible.
 onMounted(() => {
-  loadMessages();
+  scrollToBottom();
 });
 
 watch(
   () => props.channelKey,
-  () => loadMessages(),
-);
-
-watch(
-  () => userStatus.value,
-  (next) => {
-    if (next === 'online' || next === 'dnd') {
-      loadMessages();
-    }
+  () => {
+    scrollToBottom();
   },
 );
 </script>

@@ -90,8 +90,8 @@ async function submit() {
   }
   try {
     await auth.login({ email: email.value, password: password.value });
-
-    void router.push('/');
+    // Redirect immediately after login - router guard will handle auth.check()
+    await router.push('/');
   } catch (e) {
     console.error('Login failed', e);
     // auth store already captured errors; field errors stay as-is
