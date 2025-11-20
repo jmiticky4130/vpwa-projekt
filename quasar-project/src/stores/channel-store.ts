@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Channel } from 'src/contracts/Channel'
-import channelService from 'src/services/ChannelService'
+import channelService from 'src/services/ChannelsService'
 import { useAuthStore } from './auth-store'
 
 export const useChannelStore = defineStore('channels', () => {

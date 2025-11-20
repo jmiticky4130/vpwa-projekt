@@ -20,7 +20,7 @@ export function useNotify() {
   //const authStore = storeToRefs(useAuthStore());
   //const currentUser = computed(() => authStore.user.value);
 
-  function shouldNotify(rawMessage?: string) {
+  function shouldNotify() {
    /* const status = currentUser.value?.status ?? 'online';
     if (status === 'dnd') return false;
 
@@ -61,7 +61,7 @@ export function useNotify() {
   }
 
   async function notifyMessage(userMessage: string, channelSlug: string, userNickname: string) {
-    if (shouldNotify(userMessage) === false) {
+    if (shouldNotify() === false) {
       return;
     }
 

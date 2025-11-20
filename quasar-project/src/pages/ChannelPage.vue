@@ -31,15 +31,15 @@
           You are viewing <strong>{{ channel.name }}</strong>
         </div>
         <div class="messages-wrapper">
-          <!-- ChannelMessageList hidden/unused by request -->
+          <ChannelMessageList :channelKey="channel.name.toLowerCase()" />
         </div>
       </div>
-      <div class="user-list-panel column">
-        <div class="row q-pa-sm q-gutter-sm">
+      <div class="user-list-panel">
+        <div class="user-list-header row q-pa-sm q-gutter-sm">
           <q-btn-toggle
             v-model="panelMode"
             toggle-color="primary"
-            color="white"
+            color="grey-8"
             dense
             :options="[
               {label: 'Users', value: 'users'},
@@ -47,7 +47,9 @@
             ]"
           />
         </div>
-        <component :is="panelComponent" v-bind="panelProps" class="col" />
+        <div class="user-list-body">
+          <component :is="panelComponent" v-bind="panelProps" />
+        </div>
       </div>
     </div>
     <div class="absolute-bottom full-width">
@@ -72,14 +74,19 @@ import { useAuthStore } from 'src/stores/auth-store';
 import { storeToRefs } from 'pinia';
 import { useNotify } from 'src/util/notification';
 import { useChannelStore } from 'src/stores/channel-store';
+import { useMessageStore } from 'src/stores/message-store';
 import type { Channel } from 'src/contracts/Channel';
 import type { User } from 'src/contracts';
 import usersService from '../services/UsersService';
-import messagesService from '../services/MessagesService';
+// Legacy HTTP messages service no longer used now that
+// channel messages are fully driven by websockets.
+// import messagesService from '../services/MessagesService';
+import ChannelMessageList from 'src/components/ChannelMessageList.vue';
 
 const { notifyMessage } = useNotify();
 const route = useRoute();
 const channelStore = useChannelStore();
+const messageStore = useMessageStore();
 
 const channel = computed<Channel | undefined>(() => {
   const slug = String(route.params.slug || '').toLowerCase();
@@ -136,15 +143,39 @@ async function refreshChannelUsers() {
   try {
     const list = await usersService.getByChannel(id)
     channelUsers.value = list
-    // Fetch messages lazily on channel open (integration with UI can be added later)
-    void messagesService.getByChannel(id)
   } catch (e) {
     console.warn('Failed to load channel users', e)
   }
 }
 
+// Join websocket channel when route/channel changes and set active
+watch(
+  () => channel.value?.name,
+  async (name) => {
+    if (!name) return
+    const key = name.toLowerCase()
+    try {
+      // Always (re)join and reload messages from the server so
+      // channel history is fetched on every visit, including
+      // after login or refresh.
+      await messageStore.join(key)
+      messageStore.setActive(key)
+    } catch (e) {
+      console.warn('Failed to join websocket channel', e)
+    }
+  },
+  { immediate: true }
+)
 
-function handleSubmit() { /* no-op while message list disabled */ }
+async function handleSubmit(value: string) {
+  const name = channel.value?.name
+  if (!name) return
+  try {
+    await messageStore.addMessage({ channel: name.toLowerCase(), message: value })
+  } catch (e) {
+    console.error('Failed to send message', e)
+  }
+}
 
 function handleSystem() { /* no-op while message list disabled */ }
 </script>
@@ -192,8 +223,24 @@ h4 {
   display: flex;
 }
 .user-list-panel {
-  flex: 0 0 240px;
+  flex: 0 0 260px;
   min-height: 0;
   display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  max-height: 100%;
+}
+.user-list-header {
+  flex: 0 0 auto;
+}
+.user-list-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.user-list-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 </style>

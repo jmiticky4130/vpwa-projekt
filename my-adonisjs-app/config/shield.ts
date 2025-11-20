@@ -32,6 +32,7 @@ const shieldConfig = defineConfig({
       '/invites',
       '/invites/create',
       '/invites/respond',
+      '/socket.io/*',
     ],
     enableXsrfCookie: false,
     methods: ['POST', 'PUT', 'PATCH', 'DELETE'],

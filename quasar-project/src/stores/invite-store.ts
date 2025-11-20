@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import invitesService from 'src/services/InvitesService'
 import type { InviteItem } from 'src/contracts'
-import channelService from 'src/services/ChannelService'
+import channelService from 'src/services/ChannelsService'
 
 export const useInviteStore = defineStore('invites', () => {
   const invites = ref<InviteItem[]>([])

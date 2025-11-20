@@ -64,7 +64,6 @@ export const useAuthStore = defineStore('auth', {
     async check(): Promise<boolean> {
       try {
         this.AUTH_START()
-        // Avoid triggering global logout on 401 to prevent router loops
         const user = await authService.me(true)
         this.AUTH_SUCCESS(user)
         return user !== null
@@ -108,6 +107,10 @@ export const useAuthStore = defineStore('auth', {
         await authService.logout()
         this.AUTH_SUCCESS(null)
         authManager.removeToken()
+        const { useMessageStore } = await import('./message-store')
+        const ms = useMessageStore()
+        ms.leave(null)
+        ms.reset()
       } catch (err: unknown) {
         this.AUTH_ERROR(err)
         throw err

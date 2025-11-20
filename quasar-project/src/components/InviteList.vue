@@ -1,8 +1,8 @@
 <template>
   <div class="invite-list-root">
     <div class="header row items-center justify-between q-mb-sm">
-      <h6 class="q-ma-none text-white">Your Invites</h6>
-      <q-btn dense flat icon="refresh" @click="refreshInvites" :disable="loading" />
+      <h6 class="q-ma-none text-white"> Your Invites</h6>
+      <q-btn dense flat color="grey-8" icon="refresh" @click="refreshInvites" :disable="loading" />
     </div>
     <div v-if="loading" class="column items-center q-my-md">
       <q-spinner color="primary" size="32px" />
@@ -44,7 +44,7 @@ import { useChannelStore } from 'src/stores/channel-store'
 
 const inviteStore = useInviteStore()
 const channelStore = useChannelStore()
-const { notifyJoinedChannel, notifyChannelCreated } = useNotify()
+const { notifyJoinedChannel } = useNotify()
 
 const invites = computed(() => inviteStore.invites)
 const loading = computed(() => inviteStore.loading)
@@ -91,5 +91,8 @@ onMounted(() => {
   border-radius: 8px;
   margin: 4px 8px;
 }
-h6 { font-weight: 600; }
+h6 { 
+  font-weight: 600;
+  margin: 10px;
+}
 </style>
