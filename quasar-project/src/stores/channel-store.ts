@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import type { Channel } from 'src/contracts/Channel'
 import channelService from 'src/services/ChannelsService'
 import { useAuthStore } from './auth-store'
+import { useMessageStore } from './message-store'
 
 export const useChannelStore = defineStore('channels', () => {
   const channels = ref<Channel[]>([])
@@ -85,6 +86,9 @@ export const useChannelStore = defineStore('channels', () => {
   async function removeMember(name: string) {
     try {
       await channelService.leave({ name })
+      // Disconnect socket for this channel
+      const ms = useMessageStore()
+      ms.leave(name)
       await refresh()
     } catch (e) {
       setError(e)
@@ -118,6 +122,9 @@ export const useChannelStore = defineStore('channels', () => {
     if (ch.creatorId !== uid) return
     try {
       await channelService.remove({ name })
+      // Disconnect socket for this channel
+      const ms = useMessageStore()
+      ms.leave(name)
       await refresh()
     } catch (e) {
       setError(e)

@@ -66,44 +66,14 @@ function registerChannelNamespace() {
     }
     logger.info('[ws] Authenticated user %s connected to %s', user.id, nsName)
 
-    const channel = await Channel.query().where('name', channelName).first()
+    // Channel & membership already verified in auth middleware; retrieve cached channel
+    const channel: Channel | undefined = (socket.data as any).channel
     if (!channel) {
-      logger.warn('[ws] Channel not found: %s', channelName)
-      socket.emit('error', { message: 'Channel not found' })
+      logger.warn('[ws] Channel not available after auth for %s', channelName)
+      socket.emit('error', { message: 'Channel not available' })
       socket.disconnect(true)
       return
     }
-
-    // Check membership
-    const isMember = await channel
-      .related('members')
-      .query()
-      .where('users.id', user.id)
-      .first()
-
-    if (!isMember) {
-      socket.emit('error', { message: 'Forbidden: not a member' })
-      socket.disconnect(true)
-      return
-    }
-
-    // loadMessages event: returns all messages for this channel
-    socket.on('loadMessages', async (cb: (err: Error | null, res?: any) => void) => {
-      try {
-        logger.debug('[ws] loadMessages by user %s in channel %s', user.id, channel.name)
-        const messages = await Message.query()
-          .where('channel_id', channel.id)
-          .orderBy('created_at', 'asc')
-          .preload('author')
-
-        const data = messages.map((m) => serializeMessage(m, m.author))
-        logger.debug('[ws] loadMessages fetched %d messages for %s', data.length, channel.name)
-        cb(null, data)
-      } catch (e: any) {
-        logger.error('[ws] loadMessages error for %s: %s', channel.name, e?.message)
-        cb(e)
-      }
-    })
 
     // addMessage event: persists and broadcasts a new message
     socket.on(

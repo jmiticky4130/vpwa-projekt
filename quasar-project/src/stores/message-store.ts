@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
 import type { RawMessage, SerializedMessage } from 'src/contracts'
 import ChannelService from 'src/services/ChannelService'
 
@@ -7,94 +8,179 @@ export interface MessageStoreState {
   error: Error | null
   messages: Record<string, SerializedMessage[]>
   active: string | null
+  totals: Record<string, number>
 }
 
-function initialState(): MessageStoreState {
-  return {
-    loading: false,
-    error: null,
-    messages: {},
-    active: null,
+export const useMessageStore = defineStore('messages', () => {
+  // State
+  const loading = ref(false)
+  const error = ref<Error | null>(null)
+  const messages = ref<Record<string, SerializedMessage[]>>({})
+  const active = ref<string | null>(null)
+  const totals = ref<Record<string, number>>({})
+
+  // Getters
+  const joinedChannels = computed(() => Object.keys(messages.value))
+  
+  const currentMessages = computed(() => {
+    return active.value !== null ? (messages.value[active.value] || []) : []
+  })
+
+  const lastMessageOf = computed(() => (channel: string): SerializedMessage | null => {
+    const arr = messages.value[channel] || []
+    if (arr.length === 0) return null
+    return arr[arr.length - 1] as SerializedMessage
+  })
+
+  // Actions
+  function setActive(channel: string | null) {
+    active.value = channel
   }
-}
 
-export const useMessageStore = defineStore('messages', {
-  state: () => initialState(),
-  getters: {
-    joinedChannels(state): string[] {
-      return Object.keys(state.messages)
-    },
-    currentMessages(state): SerializedMessage[] {
-      return state.active !== null ? (state.messages[state.active] || []) : []
-    },
-    lastMessageOf: (state) => (channel: string): SerializedMessage | null => {
-      const arr = state.messages[channel] || []
-      if (arr.length === 0) return null
-      return arr[arr.length - 1] as SerializedMessage
-    },
-  },
-  actions: {
-    setActive(channel: string | null) {
-      this.active = channel
-    },
-    loadingStart() {
-      this.loading = true
-      this.error = null
-    },
-    loadingError(err: unknown) {
-      this.loading = false
-      this.error = err instanceof Error ? err : new Error('Unknown error')
-    },
-    loadingSuccess(channel: string, messages: SerializedMessage[]) {
-      this.loading = false
-      this.messages[channel] = messages
-    },
-    addIncomingMessage(channel: string, message: SerializedMessage) {
-      if (!this.messages[channel]) {
-        this.messages[channel] = []
+  function loadingStart() {
+    loading.value = true
+    error.value = null
+  }
+
+  function loadingError(err: unknown) {
+    loading.value = false
+    error.value = err instanceof Error ? err : new Error('Unknown error')
+  }
+
+  function loadingSuccess(channel: string, msgs: SerializedMessage[], total?: number) {
+    loading.value = false
+    messages.value[channel] = msgs
+    if (total !== undefined) {
+      totals.value[channel] = total
+    }
+  }
+
+  function prependMessages(channel: string, msgs: SerializedMessage[]) {
+    if (!messages.value[channel]) {
+      messages.value[channel] = []
+    }
+    // Filter out duplicates to avoid UI glitches or key collisions
+    const existingIds = new Set(messages.value[channel].map(m => m.id))
+    const uniqueMsgs = msgs.filter(m => !existingIds.has(m.id))
+    
+    if (uniqueMsgs.length > 0) {
+      messages.value[channel] = [...uniqueMsgs, ...messages.value[channel]]
+    }
+  }
+
+  function addIncomingMessage(channel: string, message: SerializedMessage) {
+    if (!messages.value[channel]) {
+      messages.value[channel] = []
+    }
+    // Prevent duplicate entries (can happen if the same websocket event
+    // fires twice during HMR or double subscription scenarios)
+    const exists = messages.value[channel].some((m) => m.id === message.id)
+    if (!exists) {
+      messages.value[channel].push(message)
+      // Increment total count so infinite scroll knows there's more history relative to new size
+      if (totals.value[channel] !== undefined) {
+        totals.value[channel]++
       }
-      // Prevent duplicate entries (can happen if the same websocket event
-      // fires twice during HMR or double subscription scenarios)
-      const exists = this.messages[channel].some((m) => m.id === message.id)
-      if (!exists) {
-        this.messages[channel].push(message)
+    }
+  }
+
+    async function join(channel: string): Promise<void> {
+    try {
+      loadingStart()
+      // Ensure socket connection for live updates
+      let manager = ChannelService.in(channel)
+      if (!manager) {
+        manager = ChannelService.join(channel)
       }
-    },
-    async join(channel: string): Promise<void> {
+      // Fetch history via HTTP
+      const response = await ChannelService.fetchMessages(channel, 0, 20)
+      loadingSuccess(channel, response.messages, response.total)
+      if (!active.value) active.value = channel
+    } catch (e) {
+      loadingError(e)
+      throw e
+    }
+  }
+
+  async function loadMore(channel: string): Promise<boolean> {
+    const manager = ChannelService.in(channel)
+    if (!manager) return false
+    const currentCount = messages.value[channel]?.length ?? 0
+    const total = totals.value[channel] ?? 0
+    if (currentCount >= total) return false
+    try {
+      const response = await ChannelService.fetchMessages(channel, currentCount, 20)
+      prependMessages(channel, response.messages)
+      return response.messages.length > 0
+    } catch (e) {
+      console.error('Failed to load more messages', e)
+      return false
+    }
+  }  
+  
+  function leave(channel: string | string[] | null): void {
+    let leaving: string[] = []
+    if (channel === null) {
+      leaving = Object.keys(messages.value)
+    } else if (Array.isArray(channel)) {
+      leaving = channel
+    } else {
+      leaving = [channel]
+    }
+
+    console.log("[message-store] Leaving channels:", leaving)
+    leaving.forEach((c) => {
+      console.log(`[message-store] Leaving channel: ${c}`)
       try {
-        this.loadingStart()
-        let manager = ChannelService.in(channel)
-        if (!manager) {
-          manager = ChannelService.join(channel)
-        }
-        const messages = await manager.loadMessages()
-        this.loadingSuccess(channel, messages)
-        if (!this.active) this.active = channel
-      } catch (e) {
-        this.loadingError(e)
-        throw e
-      }
-    },
-    leave(channel: string | null): void {
-      const leaving: string[] = channel !== null ? [channel] : Object.keys(this.messages)
-      leaving.forEach((c) => {
         ChannelService.leave(c)
-        if (this.active === c) this.active = null
-        delete this.messages[c]
-      })
-    },
-    async addMessage(payload: { channel: string; message: RawMessage }): Promise<SerializedMessage | undefined> {
-      const { channel, message } = payload
-      const manager = ChannelService.in(channel)
-      if (!manager) return undefined
-      const newMessage = await manager.addMessage(message)
-      // Do not push here; the server broadcast via the
-      // websocket 'message' event will call addIncomingMessage
-      // and update the store for this channel.
-      return newMessage
-    },
-    reset() {
-      Object.assign(this, initialState())
-    },
-  },
+      } catch (e) {
+        console.warn(`[message-store] Failed to leave socket for ${c}`, e)
+      }
+      
+      if (active.value === c) active.value = null
+      delete messages.value[c]
+      delete totals.value[c]
+    })
+  }
+
+  async function addMessage(payload: { channel: string; message: RawMessage }): Promise<SerializedMessage | undefined> {
+    const { channel, message } = payload
+    const manager = ChannelService.in(channel)
+    if (!manager) return undefined
+    const newMessage = await manager.addMessage(message)
+    // Do not push here; the server broadcast via the
+    // websocket 'message' event will call addIncomingMessage
+    // and update the store for this channel.
+    return newMessage
+  }
+
+  function reset() {
+    loading.value = false
+    error.value = null
+    messages.value = {}
+    active.value = null
+    totals.value = {}
+  }
+
+  return {
+    loading,
+    error,
+    messages,
+    active,
+    totals,
+    joinedChannels,
+    currentMessages,
+    lastMessageOf,
+    setActive,
+    loadingStart,
+    loadingError,
+    loadingSuccess,
+    prependMessages,
+    addIncomingMessage,
+    join,
+    loadMore,
+    leave,
+    addMessage,
+    reset
+  }
 })

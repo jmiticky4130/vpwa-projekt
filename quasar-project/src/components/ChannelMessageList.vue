@@ -94,16 +94,15 @@ const displayedMessages = computed<Message[]>(() => {
   return arr.map(toViewMessage);
 });
 const listEl = ref<HTMLElement | null>(null);
-// Infinite scroll paging disabled for now (server returns full list)
 
 const { user } = storeToRefs(useAuthStore());
 // Basic mode: assume online since per-user status store was removed
 const userStatus = computed<'online' | 'dnd' | 'offline'>(() => 'online');
 const currentUserDisplay = computed(() => user.value?.nickname ?? '');
 
-function loadMoreMessages(_index: number, done: (stop?: boolean) => void) {
-  // Backend currently returns full list; disable further loads
-  done(true);
+async function loadMoreMessages(_index: number, done: (stop?: boolean) => void) {
+  const hasMore = await messageStore.loadMore(props.channelKey);
+  done(!hasMore);
 }
 
 // Persistence disabled - removed function
@@ -115,6 +114,13 @@ function scrollToBottom() {
       el.scrollTop = el.scrollHeight;
     }
   });
+}
+
+function isNearBottom(): boolean {
+  const el = listEl.value;
+  if (!el) return false;
+  const threshold = 150; // pixels from bottom
+  return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
 }
 
 async function appendMessage(text: string) {
@@ -165,6 +171,16 @@ watch(
   () => {
     scrollToBottom();
   },
+);
+
+// Auto-scroll when new messages arrive if user is near bottom
+watch(
+  () => displayedMessages.value.length,
+  (newLength, oldLength) => {
+    if (newLength > oldLength && isNearBottom()) {
+      scrollToBottom();
+    }
+  }
 );
 </script>
 
