@@ -51,7 +51,12 @@
             </div>
           </template>
           <template v-else>
-            <div>{{ m.text }}</div>
+            <div>
+              {{ m.text }}
+              <q-badge v-if="m.state === 'sending'" color="orange" class="q-ml-xs" rounded outline>
+                sending...
+              </q-badge>
+            </div>
           </template>
         </q-chat-message>
       </div>
@@ -71,7 +76,7 @@ type Message = {
   text: string;
   name: string;
   stamp: string;
-  state: 'sent' | 'typing' | 'peeking';
+  state: 'sent' | 'typing' | 'peeking' | 'sending';
 };
 
 const props = defineProps<{ channelKey: string }>();
@@ -90,14 +95,22 @@ function toViewMessage(m: SerializedMessage): Message {
 }
 
 const displayedMessages = computed<Message[]>(() => {
-  const arr = messageStore.messages[props.channelKey] || [];
-  return arr.map(toViewMessage);
+  const persisted = (messageStore.messages[props.channelKey] || []).map(toViewMessage)
+  const queuedRaw = messageStore.offlineQueues[props.channelKey] || []
+  const queued = queuedRaw.map((raw, idx) => ({
+    id: `queued-${idx}-${props.channelKey}`,
+    text: raw,
+    name: currentUserDisplay.value || 'You',
+    stamp: new Date().toLocaleTimeString(),
+    state: 'sending' as const
+  }))
+  return [...persisted, ...queued]
 });
 const listEl = ref<HTMLElement | null>(null);
 
 const { user } = storeToRefs(useAuthStore());
 // Basic mode: assume online since per-user status store was removed
-const userStatus = computed<'online' | 'dnd' | 'offline'>(() => 'online');
+const userStatus = computed(() => user.value?.status ?? 'online');
 const currentUserDisplay = computed(() => user.value?.nickname ?? '');
 
 async function loadMoreMessages(_index: number, done: (stop?: boolean) => void) {
@@ -124,6 +137,7 @@ function isNearBottom(): boolean {
 }
 
 async function appendMessage(text: string) {
+  
   try {
     await messageStore.addMessage({ channel: props.channelKey, message: text });
     // The incoming echo (via websocket 'message') updates the store and UI
@@ -135,6 +149,8 @@ async function appendMessage(text: string) {
 
 function isOwn(m: Message) {
   const me = currentUserDisplay.value;
+  // Queued messages (sending) are always owned by current user
+  if (m.state === 'sending') return true;
   if (m.name && me) {
     return m.state === 'sent' && m.name === me;
   }
@@ -271,5 +287,10 @@ watch(
   border-style: dotted !important;
   border-width: 3px;
   border-color: #dcf06b !important;
+}
+.flat-message.state-sending :deep(.q-message-text) {
+  border-style: dashed;
+  border-color: #ff9800;
+  opacity: 0.7;
 }
 </style>

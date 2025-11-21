@@ -1,36 +1,48 @@
-import { useRouter } from 'vue-router';
-//import { storeToRefs } from 'pinia';
-import { Notify } from 'quasar';
-import { AppVisibility } from 'quasar';
-import { Screen } from 'quasar';
-//import { computed } from 'vue/dist/vue.js';
-//import { useAuthStore } from 'src/stores/auth-store';
+import { storeToRefs } from 'pinia';
+import { Notify, AppVisibility, Screen } from 'quasar';
+import { useAuthStore } from 'src/stores/auth-store';
+import { getRouter } from 'src/router';
 
 Notify.setDefaults({
   position: Screen.lt.sm ? 'top' : 'bottom-right',
 });
 
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export function useNotify() {
-  const router = useRouter();
+  function goToChannel(slug: string) {
+    try {
+      const router = getRouter();
+      void router.push({ name: 'channel', params: { slug } });
+    } catch (err) {
+      console.error('Router instance not ready when trying to navigate to channel', err);
+    }
+  }
 
-  //const authStore = storeToRefs(useAuthStore());
-  //const currentUser = computed(() => authStore.user.value);
+  function shouldNotify(messageBody: string, userNickname: string): boolean {
+    const authStore = useAuthStore();
+    console.log('Auth store user:', authStore.user);
+    const { user } = storeToRefs(authStore);
 
-  function shouldNotify() {
-   /* const status = currentUser.value?.status ?? 'online';
-    if (status === 'dnd') return false;
+    if (user.value?.nickname === userNickname) {
+      return false;
+    }
+    console.log('User ref:', user);
 
-    const onlyDirected = currentUser.value?.showOnlyDirectedMessages ?? false;
-    if (!onlyDirected) return true;
+    const status = user.value?.status ?? 'online';
 
-    const nick = currentUser.value?.nickname?.trim();
-    if (!nick || !rawMessage) return false;
-    const mention = `@${nick}`;*/
-    //return rawMessage.includes(mention);
+    // dnd: nechodia ziadne notifikacie
+    // offline: neprichádzajú používateľovi správy ani notifikacie (handled here for notifications)
+    if (status === 'dnd' || status === 'offline') return false;
+
+    const onlyDirected = user.value?.showOnlyDirectedMessages ?? false;
+
+    // directNotify: iba pre správy, ktoré sú mu adresované @userName
+    if (onlyDirected) {
+      const nick = user.value?.nickname?.trim();
+      if (!nick) return false;
+      const mention = `@${nick}`;
+      return messageBody.includes(mention);
+    }
+
     return true;
   }
 
@@ -56,16 +68,14 @@ export function useNotify() {
     const n = new Notification(title, options);
     n.onclick = () => {
       window.focus();
-      void router.push({ name: 'channel', params: { slug: channelSlug } });
+      goToChannel(channelSlug);
     };
   }
 
   async function notifyMessage(userMessage: string, channelSlug: string, userNickname: string) {
-    if (shouldNotify() === false) {
+    if ((shouldNotify(userMessage, userNickname) === false)) {
       return;
     }
-
-    await delay(2000);
 
     if (!AppVisibility.appVisible) {
       await notifySystemMessage(
@@ -86,9 +96,8 @@ export function useNotify() {
           {
             label: 'View message',
             color: 'white',
-
             handler: () => {
-              void router.push({ name: 'channel', params: { slug: channelSlug } });
+              goToChannel(channelSlug);
             },
           },
           {

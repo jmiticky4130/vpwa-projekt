@@ -59,36 +59,32 @@
       :color="colorFor('directed')"
       :outline="directedOnly !== true"
       @click="toggleShowOnlyDirectedMessages"
-      icon="trip_origin"
-      :aria-label="'Directed Messages'"
+      icon="alternate_email"
+      :aria-label="'Direct Notify Only'"
     >
       <q-tooltip class="text-body2">
-        Toggle: Show only messages directed at you
+        Toggle: Notify only for @mentions
         <br />
-        Currently: {{ directedOnly ? 'Only directed messages' : 'All messages' }}
+        Currently: {{ directedOnly ? 'Only @mentions' : 'All notifications' }}
       </q-tooltip>
     </q-btn>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-// import { useAuthStore } from 'src/stores/auth-store';
+import { computed } from 'vue';
+import { useAuthStore } from 'src/stores/auth-store';
 
-// With user-store removed, keep local UI state for status and directed-only toggle
-// Import available for future use (e.g., server-side status), but unused for now
-// const auth = useAuthStore();
-const statusRef = ref<'online' | 'dnd' | 'offline'>('online');
-const directedOnlyRef = ref<boolean>(false);
+const auth = useAuthStore();
 
-const status = computed(() => statusRef.value);
-const directedOnly = computed(() => directedOnlyRef.value);
+const status = computed(() => auth.user?.status ?? 'online');
+const directedOnly = computed(() => auth.user?.showOnlyDirectedMessages ?? false);
 
 function setStatus(status: 'online' | 'dnd' | 'offline') {
-  statusRef.value = status;
+  auth.setStatus(status);
 }
 function toggleShowOnlyDirectedMessages() {
-  directedOnlyRef.value = !directedOnlyRef.value;
+  auth.setShowOnlyDirectedMessages(!directedOnly.value);
 }
 
 function colorFor(s: 'online' | 'dnd' | 'offline' | 'directed') {
