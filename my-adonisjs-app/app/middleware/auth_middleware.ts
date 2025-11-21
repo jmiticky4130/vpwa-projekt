@@ -5,6 +5,7 @@ import type { Socket } from 'socket.io'
 import logger from '@adonisjs/core/services/logger'
 import { Secret } from '@adonisjs/core/helpers'
 import User from '#models/user'
+import Channel from '#models/channel'
 
 /**
  * Auth middleware is used authenticate HTTP requests and deny
@@ -47,14 +48,6 @@ export default class AuthMiddleware {
         return next(err)
       }
 
-      // Expecting an opaque access token like "oat_..."
-      if (!token.startsWith('oat_')) {
-        const err: any = new Error('Unauthorized: invalid token format')
-        err.data = { status: 401 }
-        logger.warn('[ws-auth] Non-oat token for socket %s (%s)', socket.id, socket.nsp?.name)
-        return next(err)
-      }
-
       // Wrap token in Secret so Adonis won't accidentally leak it
       const secret = new Secret(token)
 
@@ -88,7 +81,7 @@ export default class AuthMiddleware {
       }
 
       // Optionally keep the current access token on the user instance for ability checks
-      ;(user as any).currentAccessToken = accessToken
+      (user as any).currentAccessToken = accessToken
 
       socket.data.user = user
       logger.info(
@@ -97,6 +90,29 @@ export default class AuthMiddleware {
         socket.nsp?.name,
         socket.id
       )
+
+      // If this is a dynamic channel namespace, also verify channel & membership here
+      const nspName = socket.nsp?.name || ''
+      if (/^\/channels\/[^/]+$/.test(nspName)) {
+        const channelName = nspName.split('/').pop() as string
+        const channel = await Channel.query().where('name', channelName).first()
+        if (!channel) {
+          const err: any = new Error('Channel not found')
+          err.data = { status: 404 }
+          logger.warn('[ws-auth] Channel %s not found for user %s', channelName, user.id)
+          return next(err)
+        }
+        const isMember = await channel.related('members').query().where('users.id', user.id).first()
+        if (!isMember) {
+          const err: any = new Error('Forbidden: not a member')
+          err.data = { status: 403 }
+          logger.warn('[ws-auth] User %s is not member of channel %s', user.id, channelName)
+          return next(err)
+        }
+        // Stash channel for later use in the connection handler
+        ;(socket.data as any).channel = channel
+        logger.info('[ws-auth] Verified membership of user %s in channel %s', user.id, channelName)
+      }
 
       return next()
     } catch (error: any) {

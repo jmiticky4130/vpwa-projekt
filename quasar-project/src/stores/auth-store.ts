@@ -1,6 +1,10 @@
 import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
 import { authService, authManager } from 'src/services'
 import type { User, LoginCredentials, RegisterData, ApiToken } from 'src/contracts'
+import ChannelService from 'src/services/ChannelService'
+const { useMessageStore } = await import('./message-store')
+
 
 export type AuthStatus = 'pending' | 'success' | 'error'
 
@@ -9,112 +13,172 @@ export interface AuthError {
   field?: string
 }
 
-export const useAuthStore = defineStore('auth', {
-  state: () => ({
-    user: null as User | null,
-    status: 'success' as AuthStatus,
-    errors: [] as AuthError[],
-  }),
+export const useAuthStore = defineStore('auth', () => {
+  // State
+  const user = ref<User | null>(null)
+  const status = ref<AuthStatus>('success')
+  const errors = ref<AuthError[]>([])
 
-  getters: {
-    /** True if user is logged in */
-    isAuthenticated: (state): boolean => state.user !== null,
-    /** True while request is in progress */
-    loading: (state): boolean => state.status === 'pending',
-  },
+  // Getters
+  const isAuthenticated = computed(() => user.value !== null)
+  const loading = computed(() => status.value === 'pending')
 
-  actions: {
-    AUTH_START(): void {
-      this.status = 'pending'
-      this.errors = []
-    },
+  // Actions
+  function AUTH_START(): void {
+    status.value = 'pending'
+    errors.value = []
+  }
 
-    AUTH_SUCCESS(user: User | null): void {
-      this.status = 'success'
-      if (user) {
-        // Append client-only defaults on successful auth fetch
-        this.user = {
-          ...user,
-          status: user.status ?? 'online',
-          showOnlyDirectedMessages: user.showOnlyDirectedMessages ?? false,
-          newchannels: Array.isArray(user.newchannels) ? user.newchannels : [],
+  function AUTH_SUCCESS(userData: User | null): void {
+    status.value = 'success'
+    if (userData) {
+      // Append client-only defaults on successful auth fetch
+      user.value = {
+        ...userData,
+        status: userData.status ?? 'online',
+        showOnlyDirectedMessages: userData.showOnlyDirectedMessages ?? false,
+        newchannels: Array.isArray(userData.newchannels) ? userData.newchannels : [],
+      }
+    } else {
+      user.value = null
+    }
+  }
+
+  function AUTH_ERROR(err: unknown): void {
+    status.value = 'error'
+
+    if (Array.isArray(err)) {
+      // array of { message, field? }
+      errors.value = err.filter(
+        (e): e is AuthError =>
+          typeof e === 'object' && e !== null && 'message' in e
+      )
+    } else if (err instanceof Error) {
+      errors.value = [{ message: err.message }]
+    } else {
+      errors.value = [{ message: 'Unknown error' }]
+    }
+  }
+
+  /** Connect to all channels the user is a member of */
+  async function connectToMemberChannels(): Promise<void> {
+    try {
+      const { useChannelStore } = await import('./channel-store')
+      const channelStore = useChannelStore()
+      
+      // Fetch latest channel list
+      await channelStore.refresh()
+      
+      if (channelStore.error) {
+        console.error('[auth] Channel store refresh failed:', channelStore.error)
+      }
+
+      // Get channels user is member of
+      const memberChannels = channelStore.list()
+      console.log(`[auth] Found ${memberChannels.length} member channels to connect`)
+      
+      // Join socket for each channel (silently, without loading messages into UI)
+      for (const channel of memberChannels) {
+        const key = channel.name.toLowerCase()
+        
+        let manager = ChannelService.in(key)
+        if (!manager) {
+          manager = ChannelService.join(key)
+          console.log(`[auth] Auto-connected to channel: ${key}`)
+        } else {
+          console.log(`[auth] Already joined channel: ${key}`)
         }
-      } else {
-        this.user = null
-      }
-    },
 
-    AUTH_ERROR(errors: unknown): void {
-      this.status = 'error'
-
-      if (Array.isArray(errors)) {
-        // array of { message, field? }
-        this.errors = errors.filter(
-          (e): e is AuthError =>
-            typeof e === 'object' && e !== null && 'message' in e
-        )
-      } else if (errors instanceof Error) {
-        this.errors = [{ message: errors.message }]
-      } else {
-        this.errors = [{ message: 'Unknown error' }]
+        // Ensure socket is connected
+        if (manager && !manager.socket.connected) {
+           console.log(`[auth] Socket not connected for ${key}, connecting...`)
+           manager.socket.connect()
+        }
       }
-    },
+    } catch (err: unknown) {
+      console.warn('[auth] Failed to auto-connect to channels:', err)
+    }
+  }
 
-    /** Verify auth token & fetch current user */
-    async check(): Promise<boolean> {
-      try {
-        this.AUTH_START()
-        const user = await authService.me(true)
-        this.AUTH_SUCCESS(user)
-        return user !== null
-      } catch (err: unknown) {
-        this.AUTH_ERROR(err)
-        throw err
+  /** Verify auth token & fetch current user */
+  async function check(): Promise<boolean> {
+    try {
+      AUTH_START()
+      const userData = await authService.me(true)
+      AUTH_SUCCESS(userData)
+      
+      // Auto-connect to all member channels after user is authenticated
+      if (userData !== null) {
+        await connectToMemberChannels()
       }
-    },
+      
+      return userData !== null
+    } catch (err: unknown) {
+      AUTH_ERROR(err)
+      throw err
+    }
+  }
 
-    /** Register a new user */
-    async register(form: RegisterData): Promise<User> {
-      try {
-        this.AUTH_START()
-        const user = await authService.register(form)
-        this.AUTH_SUCCESS(null)
-        return user
-      } catch (err: unknown) {
-        this.AUTH_ERROR(err)
-        throw err
-      }
-    },
+  /** Register a new user */
+  async function register(form: RegisterData): Promise<User> {
+    try {
+      AUTH_START()
+      const userData = await authService.register(form)
+      AUTH_SUCCESS(null)
+      return userData
+    } catch (err: unknown) {
+      AUTH_ERROR(err)
+      throw err
+    }
+  }
 
-    /** Log in & save API token */
-    async login(credentials: LoginCredentials): Promise<ApiToken> {
-      try {
-        this.AUTH_START()
-        const apiToken = await authService.login(credentials)
-        this.AUTH_SUCCESS(null)
-        authManager.setToken(apiToken.token)
-        return apiToken
-      } catch (err: unknown) {
-        this.AUTH_ERROR(err)
-        throw err
-      }
-    },
+  /** Log in & save API token */
+  async function login(credentials: LoginCredentials): Promise<ApiToken> {
+    try {
+      AUTH_START()
+      const apiToken = await authService.login(credentials)
+      AUTH_SUCCESS(null)
+      authManager.setToken(apiToken.token)
+      return apiToken
+    } catch (err: unknown) {
+      AUTH_ERROR(err)
+      throw err
+    }
+  }
 
-    /** Log out & clear token */
-    async logout(): Promise<void> {
-      try {
-        this.AUTH_START()
-        await authService.logout()
-        this.AUTH_SUCCESS(null)
-        authManager.removeToken()
-        const { useMessageStore } = await import('./message-store')
-        const ms = useMessageStore()
-        ms.leave(null)
-        ms.reset()
-      } catch (err: unknown) {
-        this.AUTH_ERROR(err)
-        throw err
-      }
-    },
-  },
+  /** Log out & clear token */
+  async function logout(): Promise<void> {
+    try {
+      AUTH_START()
+      await authService.logout()
+      AUTH_SUCCESS(null)
+      authManager.removeToken()
+      
+      // Clean up all message store sockets
+      
+      const ms = useMessageStore()
+      
+      console.log("[auth] Logging out, disconnecting all sockets");
+      ChannelService.leaveAll()
+      
+      console.log("[auth] Resetting message store");
+      ms.reset()
+    } catch (err: unknown) {
+      AUTH_ERROR(err)
+      throw err
+    }
+  }
+
+  return {
+    user,
+    status,
+    errors,
+    isAuthenticated,
+    loading,
+    check,
+    register,
+    login,
+    logout,
+    connectToMemberChannels
+  }
 })

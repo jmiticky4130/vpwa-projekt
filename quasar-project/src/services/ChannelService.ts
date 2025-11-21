@@ -2,24 +2,12 @@ import type { RawMessage, SerializedMessage } from "src/contracts";
 import type { BootParams } from "./SocketManager";
 import { SocketManager } from "./SocketManager";
 import { useMessageStore } from "src/stores/message-store";
+import { api } from "src/boot/axios";
 
 // creating instance of this class automatically connects to given socket.io namespace
 // subscribe is called with boot params, so you can use it to dispatch actions for socket events
 // you have access to socket.io socket using this.socket
 class ChannelSocketManager extends SocketManager {
-  // Ensure the namespace socket is connected before emitting any events
-  private async ensureConnected(): Promise<void> {
-    const s = this.socket
-    if (s.connected) return
-    await new Promise<void>((resolve) => {
-      const onConnect = () => {
-        s.off('connect', onConnect)
-        resolve()
-      }
-      s.on('connect', onConnect)
-      try { s.connect() } catch { /* noop */ }
-    })
-  }
   public subscribe(params: BootParams): void {
     const channel = this.namespace.split("/").pop() as string;
     const messageStore = useMessageStore();
@@ -33,17 +21,7 @@ class ChannelSocketManager extends SocketManager {
   }
 
   public addMessage(message: RawMessage): Promise<SerializedMessage> {
-    return (async () => {
-      await this.ensureConnected()
-      return this.emitAsync("addMessage", message)
-    })()
-  }
-
-  public loadMessages(): Promise<SerializedMessage[]> {
-    return (async () => {
-      await this.ensureConnected()
-      return this.emitAsync("loadMessages")
-    })()
+    return this.emitAsync("addMessage", message);
   }
 }
 
@@ -58,6 +36,7 @@ class ChannelService {
     // connect to given channel namespace
     const channel = new ChannelSocketManager(`/channels/${name}`);
     this.channels.set(name, channel);
+    console.log(`[ChannelService] Joined channel: ${name} ${channel.namespace}`);
     return channel;
   }
 
@@ -73,8 +52,21 @@ class ChannelService {
     return this.channels.delete(name);
   }
 
+  public leaveAll(): void {
+    this.channels.forEach((_, name) => {
+      this.leave(name);
+    });
+  }
+
   public in(name: string): ChannelSocketManager | undefined {
     return this.channels.get(name);
+  }
+
+  public async fetchMessages(channelName: string, skip = 0, limit = 20): Promise<{ messages: SerializedMessage[]; total: number }> {
+    const response = await api.get<{ messages: SerializedMessage[]; total: number }>('/messages/get', {
+      params: { channelName, skip, limit }
+    });
+    return response.data;
   }
 }
 

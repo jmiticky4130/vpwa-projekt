@@ -74,6 +74,7 @@ export abstract class SocketManager implements SocketManagerContract {
     instance: SocketManagerContract & { $socket: Socket | null }
   ): void {
     this.instances = this.instances.filter((socket) => socket !== instance);
+    console.log(`[SocketManager] Destroying instance for namespace: ${instance.namespace}`);
     this.namespaces.delete(instance.namespace);
     // disconnect and clean socket
     instance.socket.disconnect();
@@ -84,10 +85,14 @@ export abstract class SocketManager implements SocketManagerContract {
   private static bootInstance(instance: SocketManagerContract): void {
     instance.subscribe(this.params as BootParams);
     // connect socket - if it was not used in subscribe it will be created
-    instance.socket.connect();
+    console.log(`[SocketManager] Booting instance for namespace: ${instance.namespace}`);
+    if (!instance.socket.connected) {
+       instance.socket.connect();
+    }
   }
 
   public static boot(params: BootParams): void {
+    console.log("[SocketManager] Booting...");
     if (this.params) {
       throw new Error(
         "SocketManager is already booted. Call it once from quasar boot file."
@@ -96,9 +101,11 @@ export abstract class SocketManager implements SocketManagerContract {
 
     this.params = params;
     // call subscribe for already created instances and connect to socket
+    console.log(`[SocketManager] Booting ${this.instances.length} queued instances`);
     this.instances.forEach((instance) => this.bootInstance(instance));
     // clean instances
     this.instances = [];
+    console.log("[SocketManager] Boot completed");
   }
 
   private $socket: Socket | null = null;
@@ -157,10 +164,6 @@ export abstract class SocketManager implements SocketManagerContract {
       socket.on("error", (err: Error) => {
         console.error(`${this.namespace} [error]`, err.message);
       });
-
-      /*socket.onAny((event, ...args) => {
-        console.info(`${this.namespace} [${event}]`, args);
-      });*/
     }
 
     return socket;

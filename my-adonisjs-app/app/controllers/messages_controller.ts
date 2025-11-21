@@ -4,33 +4,57 @@ import Message from '#models/message'
 
 export default class MessagesController {
   /**
-   * GET /messages/get?channelId=
+   * GET /messages/get?channelName=&skip=&limit=
    * Returns messages for a channel if requester is a member
    */
   async getByChannel({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
-    const channelIdRaw = request.input('channelId') ?? request.qs().channelId
-    const channelId = Number(channelIdRaw)
-    if (!channelId || Number.isNaN(channelId) || channelId <= 0) {
-      return response.badRequest({ error: 'Invalid channelId' })
+    const channelName = request.input('channelName')
+    const skip = request.input('skip', 0)
+    const limit = request.input('limit', 20)
+
+    if (!channelName) {
+      return response.badRequest({ error: 'Invalid channelName' })
     }
 
-    const channel = await Channel.find(channelId)
+    const channel = await Channel.query().where('name', channelName).first()
     if (!channel) return response.notFound({ error: 'Channel not found' })
 
     const isMember = await channel.related('members').query().where('users.id', user.id).first()
     if (!isMember) return response.forbidden({ error: 'Not a member of this channel' })
 
-    const messages = await Message.query()
-      .where('channel_id', channelId)
-      .orderBy('created_at', 'asc')
+    const totalObj = await Message.query().where('channel_id', channel.id).count('* as total')
+    const total = Number(totalObj[0]?.$extras?.total ?? 0)
 
-    return messages.map((m) => ({
+    const messages = await Message.query()
+      .where('channel_id', channel.id)
+      .orderBy('created_at', 'desc')
+      .offset(skip)
+      .limit(limit)
+      .preload('author')
+
+    // Reverse to get chronological order (oldest first in the array)
+    messages.reverse()
+
+    const data = messages.map((m) => ({
       id: m.id,
       channelId: m.channelId,
-      authorId: m.authorId,
+      createdBy: m.authorId,
       body: m.body,
-      createdAt: (m.createdAt || undefined)?.toISO?.() ?? null,
+      createdAt: (m.createdAt || undefined)?.toISO?.() ?? new Date().toISOString(),
+      updatedAt: (m.createdAt || undefined)?.toISO?.() ?? new Date().toISOString(),
+      author: {
+        id: m.author.id,
+        nickname: m.author.nickname,
+        firstName: m.author.firstName,
+        lastName: m.author.lastName,
+        email: m.author.email,
+        createdAt: (m.author.createdAt || undefined)?.toISO?.() ?? new Date().toISOString(),
+        updatedAt: (m.author.createdAt || undefined)?.toISO?.() ?? new Date().toISOString(),
+        newchannels: [],
+      },
     }))
+
+    return { messages: data, total }
   }
 }
