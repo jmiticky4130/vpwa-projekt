@@ -1,67 +1,67 @@
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import invitesService from 'src/services/InvitesService'
-import type { InviteItem } from 'src/contracts'
-import channelService from 'src/services/ChannelsService'
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
+import invitesService from 'src/services/InvitesService';
+import type { InviteItem } from 'src/contracts';
+import channelService from 'src/services/ChannelsService';
 
 export const useInviteStore = defineStore('invites', () => {
-  const invites = ref<InviteItem[]>([])
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+  const invites = ref<InviteItem[]>([]);
+  const loading = ref(false);
+  const error = ref<string | null>(null);
 
   const setError = (e: unknown) => {
-    if (e instanceof Error) error.value = e.message
-    else error.value = 'Unknown error'
-  }
+    console.error('InviteStore error:', e);
+    error.value = 'There was an error fetching invites.';
+  };
 
   async function refresh() {
-    loading.value = true
-    error.value = null
+    loading.value = true;
+    error.value = null;
     try {
-      invites.value = await invitesService.list()
+      invites.value = await invitesService.list();
     } catch (e) {
-      setError(e)
+      setError(e);
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
   async function sendInvite(channelName: string, target: string): Promise<boolean> {
     try {
-      await invitesService.create({ channelName, target })
-      await refresh()
-      return true
+      await invitesService.create({ channelName, target });
+      await refresh();
+      return true;
     } catch (e) {
-      setError(e)
-      return false
+      setError(e);
+      return false;
     }
   }
 
   async function accept(inviteId: number): Promise<boolean> {
     try {
-      const resp = await invitesService.respond(inviteId, 'accept')
+      const resp = await invitesService.respond(inviteId, 'accept');
       if (resp.channel) {
         // Ensure channels list updates so UI shows membership
-        await channelService.list() // called indirectly by channel store normally; could emit event instead
+        await channelService.list(); // called indirectly by channel store normally; could emit event instead
       }
-      invites.value = invites.value.filter((i) => i.id !== inviteId)
-      return true
+      invites.value = invites.value.filter((i) => i.id !== inviteId);
+      return true;
     } catch (e) {
-      setError(e)
-      return false
+      setError(e);
+      return false;
     }
   }
 
   async function decline(inviteId: number): Promise<boolean> {
     try {
-      await invitesService.respond(inviteId, 'decline')
-      invites.value = invites.value.filter((i) => i.id !== inviteId)
-      return true
+      await invitesService.respond(inviteId, 'decline');
+      invites.value = invites.value.filter((i) => i.id !== inviteId);
+      return true;
     } catch (e) {
-      setError(e)
-      return false
+      setError(e);
+      return false;
     }
   }
 
-  return { invites, loading, error, refresh, sendInvite, accept, decline }
-})
+  return { invites, loading, error, refresh, sendInvite, accept, decline };
+});

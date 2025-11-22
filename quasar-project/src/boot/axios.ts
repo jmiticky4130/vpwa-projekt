@@ -1,6 +1,7 @@
 import { boot } from 'quasar/wrappers'
 import axios, { type AxiosInstance } from 'axios'
 import { authManager } from 'src/services'
+import { useAuthStore } from 'src/stores/auth-store'
 
 const API_URL = process.env.API_URL || 'http://localhost:3333'
 const DEBUG = process.env.NODE_ENV === 'development'
@@ -28,6 +29,11 @@ const api = axios.create({
 // add interceptor to add authorization header for api calls
 api.interceptors.request.use(
   (config) => {
+    const authStore = useAuthStore()
+    if (authStore.user?.status === 'offline') {
+      return Promise.reject(new Error('Offline mode enabled'))
+    }
+
     const token = authManager.getToken()
 
     if (token !== null) {
@@ -52,6 +58,10 @@ api.interceptors.request.use(
 // add interceptor for response to trigger logout
 api.interceptors.response.use(
   (response) => {
+    const authStore = useAuthStore()
+    if (authStore.user?.status === 'offline') {
+      return Promise.reject(new Error('Offline mode enabled'))
+    }
     if (DEBUG) {
       console.info('<- ', response)
     }

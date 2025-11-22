@@ -3,8 +3,6 @@ import { ref, computed } from 'vue'
 import { authService, authManager } from 'src/services'
 import type { User, LoginCredentials, RegisterData, ApiToken } from 'src/contracts'
 import ChannelService from 'src/services/ChannelService'
-const { useMessageStore } = await import('./message-store')
-
 
 export type AuthStatus = 'pending' | 'success' | 'error'
 
@@ -43,7 +41,6 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = null
     }
   }
-
   function AUTH_ERROR(err: unknown): void {
     status.value = 'error'
 
@@ -155,7 +152,7 @@ export const useAuthStore = defineStore('auth', () => {
       authManager.removeToken()
       
       // Clean up all message store sockets
-      
+      const { useMessageStore } = await import('./message-store')
       const ms = useMessageStore()
       
       console.log("[auth] Logging out, disconnecting all sockets");
@@ -169,6 +166,77 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  function setStatus(newStatus: "online" | "offline" | "dnd"): void {
+    if (user.value) {
+      const oldStatus = user.value.status;
+      console.log('[auth] Setting status to', newStatus);
+      user.value.status = newStatus;
+
+      if (newStatus === 'offline') {
+        console.log('[auth] Offline mode enabled, broadcasting offline then disconnecting sockets');
+        try {
+          for (const ch of ChannelService.joined()) {
+            const manager = ChannelService.in(ch)
+            if (manager) {
+              console.log(`[auth] Emitting setStatus('offline') to channel ${ch} before disconnect`)
+              manager.socket.emit('setStatus', 'offline')
+            }
+          }
+        } finally {
+          ChannelService.leaveAll()
+        }
+        // No emit needed when going offline (sockets closed)
+      } else if (oldStatus === 'offline') {
+        console.log('[auth] Exiting offline mode, reconnecting sockets & flushing queued messages');
+        // Wait for sockets to reconnect, then flush queued messages
+        void (async () => {
+          try {
+            await connectToMemberChannels();
+            const { useMessageStore } = await import('./message-store')
+            console.log('[auth] Flushing all offline message queues');
+            const ms = useMessageStore()
+            await ms.flushAllOfflineQueues()
+            for (const ch of ms.joinedChannels) {
+              await ms.revalidateChannel(ch)
+            }
+            // Broadcast current status to all joined sockets (via ChannelService)
+            for (const ch of ChannelService.joined()) {
+              const manager = ChannelService.in(ch)
+              if (manager) {
+                console.log(`[auth] Emitting setStatus('${newStatus}') to channel ${ch}`)
+                manager.socket.emit('setStatus', newStatus)
+              }
+            }
+          } catch (e) {
+            console.warn('[auth] Failed flushing offline queues after going online', e)
+          }
+        })()
+      } else {
+        // Status change between non-offline states: broadcast immediately
+        void (() => {
+          try {
+            for (const ch of ChannelService.joined()) {
+              const manager = ChannelService.in(ch)
+              if (manager) {
+                console.log(`[auth] Emitting setStatus('${newStatus}') to channel ${ch}`)
+                manager.socket.emit('setStatus', newStatus)
+              }
+            }
+          } catch (e) {
+            console.warn('[auth] Failed to broadcast status change', e)
+          }
+        })()
+      }
+    }
+  }
+
+  function setShowOnlyDirectedMessages(showOnly: boolean): void {
+    if (user.value) {
+      console.log('[auth] Setting showOnlyDirectedMessages to', showOnly);
+      user.value.showOnlyDirectedMessages = showOnly;
+    }
+  }
+
   return {
     user,
     status,
@@ -179,6 +247,8 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     login,
     logout,
-    connectToMemberChannels
+    connectToMemberChannels,
+    setStatus,
+    setShowOnlyDirectedMessages
   }
 })

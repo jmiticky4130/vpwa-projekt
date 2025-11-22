@@ -9,22 +9,6 @@
           <q-badge v-if="channelCreatorLabel" color="indigo-6" class="text-white">
             Creator: {{ channelCreatorLabel }}
           </q-badge>
-          <q-btn
-            @click="onNotify(false)"
-            color="primary"
-            label="Notify"
-            dense
-            flat
-            class="q-ml-xs"
-          />
-          <q-btn
-            @click="onNotify(true)"
-            color="primary"
-            label="Direct Notify"
-            dense
-            flat
-            class="q-ml-xs"
-          />
           <h4 class="q-ma-none text-white ellipsis">{{ channel.name }}</h4>
         </header>
         <div class="channel-sub text-grey-5" v-if="channel">
@@ -72,18 +56,14 @@ import UserList from 'src/components/UserList.vue';
 import InviteList from 'src/components/InviteList.vue';
 import { useAuthStore } from 'src/stores/auth-store';
 import { storeToRefs } from 'pinia';
-import { useNotify } from 'src/util/notification';
 import { useChannelStore } from 'src/stores/channel-store';
 import { useMessageStore } from 'src/stores/message-store';
 import type { Channel } from 'src/contracts/Channel';
 import type { User } from 'src/contracts';
 import usersService from '../services/UsersService';
-// Legacy HTTP messages service no longer used now that
-// channel messages are fully driven by websockets.
-// import messagesService from '../services/MessagesService';
 import ChannelMessageList from 'src/components/ChannelMessageList.vue';
+import { usePresenceStore } from 'src/stores/presence-store';
 
-const { notifyMessage } = useNotify();
 const route = useRoute();
 const channelStore = useChannelStore();
 const messageStore = useMessageStore();
@@ -93,21 +73,9 @@ const channel = computed<Channel | undefined>(() => {
   return channelStore.channels.find((c) => c.name.toLowerCase() === slug);
 });
 
-// const channelKey = computed(() => (channel.value ? channel.value.name.toLowerCase() : ''));
-
-async function onNotify(directed: boolean) {
-  await notifyMessage(
-    `Hello${directed ? `@${currentUserDisplay.value}` : ''} this is a test notification `,
-    channel.value?.name || '',
-    currentUserDisplay.value,
-  );
-}
-
-// Message list disabled; simulate typing removed
 
 const auth = useAuthStore();
 const { user: currentUser } = storeToRefs(auth);
-const currentUserDisplay = computed(() => currentUser.value?.nickname ?? '');
 const currentUserEmail = computed(() => currentUser.value?.email ?? '');
 
 const channelCreatorLabel = computed(() => {
@@ -118,11 +86,25 @@ const channelCreatorLabel = computed(() => {
 });
 
 const channelUsers = ref<User[]>([]);
+const presence = usePresenceStore();
+const channelUsersWithStatus = computed<User[]>(() => {
+  return channelUsers.value.map(u => {
+    let status: 'online' | 'dnd' | 'offline'
+    if (currentUser.value && u.id === currentUser.value.id) {
+      // Auth store guarantees one of the three values
+      status = currentUser.value.status as 'online' | 'dnd' | 'offline'
+    } else {
+      const p = presence.get(u.id)
+      status = (p ?? 'offline') as 'online' | 'dnd' | 'offline'
+    }
+    return { ...u, status }
+  })
+});
 const panelMode = ref<'users' | 'invites'>('users')
 const panelComponent = computed(() => (panelMode.value === 'users' ? UserList : InviteList))
 const panelProps = computed(() => {
   return panelMode.value === 'users'
-    ? { users: channelUsers.value, currentUserEmail: currentUserEmail.value }
+    ? { users: channelUsersWithStatus.value, currentUserEmail: currentUserEmail.value }
     : {}
 })
 
@@ -155,16 +137,36 @@ watch(
     if (!name) return
     const key = name.toLowerCase()
     try {
-      // Always (re)join and reload messages from the server so
-      // channel history is fetched on every visit, including
-      // after login or refresh.
-      await messageStore.join(key)
       messageStore.setActive(key)
+      if(auth.user?.status !== 'offline'){
+        await messageStore.join(key)
+      }
     } catch (e) {
-      console.warn('Failed to join websocket channel', e)
+      console.warn('error when changing the active channel', e)
     }
   },
   { immediate: true }
+)
+
+
+// Reload channel data when user comes back online
+watch(
+  () => auth.user?.status,
+  async (newStatus, oldStatus) => {
+    if (newStatus === 'online' && oldStatus === 'offline') {
+      const name = channel.value?.name
+      if (name) {
+        console.log('[ChannelPage] User came online, refreshing channel...')
+        const key = name.toLowerCase()
+        try {
+          await messageStore.join(key)
+          await refreshChannelUsers()
+        } catch (e) {
+          console.warn('Failed to refresh channel on online status', e)
+        }
+      }
+    }
+  }
 )
 
 async function handleSubmit(value: string) {

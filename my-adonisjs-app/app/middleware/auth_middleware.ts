@@ -38,8 +38,9 @@ export default class AuthMiddleware {
           : undefined
 
       const token =
-        (socket.handshake.auth as Record<string, unknown> | undefined)?.token as string | undefined ||
-        authTokenFromHeader
+        ((socket.handshake.auth as Record<string, unknown> | undefined)?.token as
+          | string
+          | undefined) || authTokenFromHeader
 
       if (!token) {
         const err: any = new Error('Unauthorized: missing token')
@@ -55,10 +56,17 @@ export default class AuthMiddleware {
       const accessToken: any = await User.accessTokens.verify(secret)
 
       // If verification failed or token is expired, reject
-      if (!accessToken || typeof accessToken.isExpired === 'function' && accessToken.isExpired()) {
+      if (
+        !accessToken ||
+        (typeof accessToken.isExpired === 'function' && accessToken.isExpired())
+      ) {
         const err: any = new Error('Unauthorized: invalid or expired token')
         err.data = { status: 401 }
-        logger.warn('[ws-auth] Invalid/expired token for socket %s (%s)', socket.id, socket.nsp?.name)
+        logger.warn(
+          '[ws-auth] Invalid/expired token for socket %s (%s)',
+          socket.id,
+          socket.nsp?.name
+        )
         return next(err)
       }
 
@@ -81,7 +89,7 @@ export default class AuthMiddleware {
       }
 
       // Optionally keep the current access token on the user instance for ability checks
-      (user as any).currentAccessToken = accessToken
+      ;(user as any).currentAccessToken = accessToken
 
       socket.data.user = user
       logger.info(

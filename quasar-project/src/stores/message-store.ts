@@ -1,7 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useAuthStore } from 'src/stores/auth-store'
 import type { RawMessage, SerializedMessage } from 'src/contracts'
 import ChannelService from 'src/services/ChannelService'
+import { useNotify } from 'src/util/notification'
+import { AppVisibility } from 'quasar'
 
 export interface MessageStoreState {
   loading: boolean
@@ -16,6 +19,8 @@ export const useMessageStore = defineStore('messages', () => {
   const loading = ref(false)
   const error = ref<Error | null>(null)
   const messages = ref<Record<string, SerializedMessage[]>>({})
+  // queue of raw messages written while offline; keyed by channel
+  const offlineQueues = ref<Record<string, RawMessage[]>>({})
   const active = ref<string | null>(null)
   const totals = ref<Record<string, number>>({})
 
@@ -68,7 +73,7 @@ export const useMessageStore = defineStore('messages', () => {
     }
   }
 
-  function addIncomingMessage(channel: string, message: SerializedMessage) {
+  async function addIncomingMessage(channel: string, message: SerializedMessage) {
     if (!messages.value[channel]) {
       messages.value[channel] = []
     }
@@ -81,10 +86,19 @@ export const useMessageStore = defineStore('messages', () => {
       if (totals.value[channel] !== undefined) {
         totals.value[channel]++
       }
+      if (channel !== active.value || !AppVisibility.appVisible) {
+        await useNotify().notifyMessage(
+          message.body,
+          channel,
+          message.author.nickname
+        );
+      }
     }
+
+    console.log(`[message-store] Added incoming message to channel: ${channel} message body ${message.body}`);
   }
 
-    async function join(channel: string): Promise<void> {
+  async function join(channel: string): Promise<void> {
     try {
       loadingStart()
       // Ensure socket connection for live updates
@@ -96,6 +110,7 @@ export const useMessageStore = defineStore('messages', () => {
       const response = await ChannelService.fetchMessages(channel, 0, 20)
       loadingSuccess(channel, response.messages, response.total)
       if (!active.value) active.value = channel
+      // If there are queued offline messages for this channel, display them as pending
     } catch (e) {
       loadingError(e)
       throw e
@@ -143,14 +158,66 @@ export const useMessageStore = defineStore('messages', () => {
     })
   }
 
+  function queueOffline(channel: string, raw: RawMessage) {
+    if (!offlineQueues.value[channel]) offlineQueues.value[channel] = []
+    offlineQueues.value[channel].push(raw)
+  }
+
+  async function flushOfflineQueue(channel: string): Promise<void> {
+    const queued = offlineQueues.value[channel]
+    if (!queued || queued.length === 0) return
+    const manager = ChannelService.in(channel)
+    if (!manager) {
+      console.warn('[message-store] Cannot flush queue, socket not joined for', channel)
+      return
+    }
+    console.log(`[message-store] Flushing ${queued.length} queued messages for ${channel}`)
+    // send sequentially to preserve order
+    for (const raw of queued) {
+      try {
+        await manager.addMessage(raw)
+      } catch (e) {
+        console.error('[message-store] Failed to send queued message, re-queueing', e)
+        queueOffline(channel, raw) // put back (end) and abort remaining flush
+        return
+      }
+    }
+    // clear queue after success
+    offlineQueues.value[channel] = []
+  }
+
+  async function flushAllOfflineQueues(): Promise<void> {
+    const channels = Object.keys(offlineQueues.value)
+    for (const ch of channels) {
+      await flushOfflineQueue(ch)
+    }
+  }
+
+  async function revalidateChannel(channel: string): Promise<void> {
+    try {
+      const response = await ChannelService.fetchMessages(channel, 0, 20)
+      loadingSuccess(channel, response.messages, response.total)
+    } catch (e) {
+      console.warn('[message-store] Failed to revalidate channel', channel, e)
+    }
+  }
+
   async function addMessage(payload: { channel: string; message: RawMessage }): Promise<SerializedMessage | undefined> {
     const { channel, message } = payload
+    const auth = useAuthStore()
+    if (auth.user?.status === 'offline') {
+      queueOffline(channel, message)
+      console.log('[message-store] Queued message while offline for channel', channel)
+      return undefined
+    }
     const manager = ChannelService.in(channel)
-    if (!manager) return undefined
-    const newMessage = await manager.addMessage(message)
-    // Do not push here; the server broadcast via the
-    // websocket 'message' event will call addIncomingMessage
-    // and update the store for this channel.
+    if (!manager) {
+      console.warn('[message-store] Not joined to channel; joining implicitly before send', channel)
+      ChannelService.join(channel)
+    }
+    const inst = ChannelService.in(channel)
+    if (!inst) return undefined
+    const newMessage = await inst.addMessage(message)
     return newMessage
   }
 
@@ -160,12 +227,14 @@ export const useMessageStore = defineStore('messages', () => {
     messages.value = {}
     active.value = null
     totals.value = {}
+    offlineQueues.value = {}
   }
 
   return {
     loading,
     error,
     messages,
+    offlineQueues,
     active,
     totals,
     joinedChannels,
@@ -181,6 +250,10 @@ export const useMessageStore = defineStore('messages', () => {
     loadMore,
     leave,
     addMessage,
+    queueOffline,
+    flushOfflineQueue,
+    flushAllOfflineQueues,
+    revalidateChannel,
     reset
   }
 })

@@ -44,7 +44,7 @@
           </div>
 
           <div v-else-if="mobileTab === 'members'" style="flex: 1">
-            <UserList :users="channelUsers" :current-user-email="currentUserEmail" />
+            <UserList :users="channelUsersWithStatus" :current-user-email="currentUserEmail" />
           </div>
         </template>
 
@@ -73,6 +73,7 @@ import { useChannelStore } from 'src/stores/channel-store';
 import { storeToRefs } from 'pinia';
 import type { User } from 'src/contracts';
 import usersService from 'src/services/UsersService';
+import { usePresenceStore } from 'src/stores/presence-store';
 
 const router = useRouter();
 const route = useRoute();
@@ -80,6 +81,18 @@ const auth = useAuthStore();
 const channelStore = useChannelStore();
 const { user: currentUser } = storeToRefs(auth);
 const mobileTab = ref<'channels' | 'chat' | 'members'>('chat');
+const presence = usePresenceStore();
+
+// Refresh member list when mobile Members tab becomes active
+watch(mobileTab, async (tab) => {
+  if (tab === 'members' && currentChannel.value?.id) {
+    try {
+      channelUsers.value = await usersService.getByChannel(currentChannel.value.id)
+    } catch (e) {
+      console.warn('Failed to refresh members on tab change', e)
+    }
+  }
+})
 
 // Current channel + users for Members tab
 const currentChannel = computed(() => {
@@ -100,6 +113,21 @@ watch(
   },
   { immediate: true }
 )
+
+const channelUsersWithStatus = computed<User[]>(() => {
+  return channelUsers.value.map(u => {
+    let status: 'online' | 'dnd' | 'offline'
+    if (currentUser.value && u.id === currentUser.value.id) {
+      // Auth store guarantees one of the three values
+      status = currentUser.value.status as 'online' | 'dnd' | 'offline'
+    } else {
+      const p = presence.get(u.id)
+      status = (p ?? 'offline') as 'online' | 'dnd' | 'offline'
+    }
+    return { ...u, status }
+  })
+});
+
 const currentUserEmail = computed(() => currentUser.value?.email ?? '');
 
 function goHome() {

@@ -40,13 +40,18 @@ export default boot(({ router }) => {
 
     // If we have a token, verify it (without triggering global logout on 401)
     if (hasToken) {
-      try {
-        isAuthenticated = await auth.check()
-      } catch {
-        isAuthenticated = false
+      if (auth.user) {
+        isAuthenticated = true
+        console.log('Auth user already loaded in store.')
+      } else {
+        try {
+          console.log('Verifying auth token via router guard...')
+          isAuthenticated = await auth.check()
+        } catch {
+          isAuthenticated = false
+        }
       }
     }
-
     // route requires authentication
     if (to.meta.requiresAuth && !isAuthenticated) {
       return loginRoute(to)
