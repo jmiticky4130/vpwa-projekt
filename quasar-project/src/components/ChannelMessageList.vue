@@ -24,15 +24,7 @@
         <q-chat-message
           :key="m.id + '-' + m.state"
           :sent="isOwn(m)"
-          :name="
-            isOwn(m)
-              ? 'You'
-              : m.state === 'typing'
-                ? `${m.name} is typing...`
-                : m.state === 'peeking'
-                  ? `${m.name}'s current preview of the message`
-                  : m.name
-          "
+          :name="isOwn(m) ? 'You' : m.name"
           :stamp="m.stamp"
           bg-color="transparent"
           text-color="white"
@@ -40,24 +32,12 @@
           :class="['flat-message', `state-${m.state}`]"
           dense
         >
-          <template v-if="m.state === 'typing'">
-            <div @click="togglePeekingMesage()">
-              <q-spinner-dots size="2rem" />
-            </div>
-          </template>
-          <template v-else-if="m.state === 'peeking'">
-            <div @click="togglePeekingMesage()">
-              hello, this is current typed message preview
-            </div>
-          </template>
-          <template v-else>
-            <div>
-              {{ m.text }}
-              <q-badge v-if="m.state === 'sending'" color="orange" class="q-ml-xs" rounded outline>
-                sending...
-              </q-badge>
-            </div>
-          </template>
+          <div>
+            {{ m.text }}
+            <q-badge v-if="m.state === 'sending'" color="orange" class="q-ml-xs" rounded outline>
+              sending...
+            </q-badge>
+          </div>
         </q-chat-message>
       </div>
     </q-infinite-scroll>
@@ -76,7 +56,8 @@ type Message = {
   text: string;
   name: string;
   stamp: string;
-  state: 'sent' | 'typing' | 'peeking' | 'sending';
+  state: 'sent' | 'sending';
+  createdAt: number;
 };
 
 const props = defineProps<{ channelKey: string }>();
@@ -91,7 +72,24 @@ function toViewMessage(m: SerializedMessage): Message {
     name: m.author?.nickname ?? 'Unknown',
     stamp: new Date(m.createdAt).toLocaleTimeString(),
     state: 'sent',
+    createdAt: new Date(m.createdAt).getTime(),
   };
+}
+
+type SystemMessage = {
+  id: string;
+  text: string;
+  createdAt: number;
+};
+const systemMessages = ref<SystemMessage[]>([]);
+
+function addSystemMessage(text: string) {
+  systemMessages.value.push({
+    id: `sys-${Date.now()}`,
+    text,
+    createdAt: Date.now(),
+  });
+  scrollToBottom();
 }
 
 const displayedMessages = computed<Message[]>(() => {
@@ -102,9 +100,20 @@ const displayedMessages = computed<Message[]>(() => {
     text: raw,
     name: currentUserDisplay.value || 'You',
     stamp: new Date().toLocaleTimeString(),
-    state: 'sending' as const
+    state: 'sending' as const,
+    createdAt: Date.now()
   }))
-  return [...persisted, ...queued]
+  
+  const system = systemMessages.value.map((sys) => ({
+    id: sys.id,
+    text: sys.text,
+    name: 'System',
+    stamp: new Date(sys.createdAt).toLocaleTimeString(),
+    state: 'sent' as const,
+    createdAt: sys.createdAt,
+  }));
+
+  return [...persisted, ...queued, ...system].sort((a, b) => a.createdAt - b.createdAt);
 });
 const listEl = ref<HTMLElement | null>(null);
 
@@ -166,15 +175,7 @@ function isDirectedToCurrentUser(m: Message) {
   return false;
 }
 
-function togglePeekingMesage() {
-  // Typing/peeking demo disabled when using server-driven messages
-}
-// Simulate someone typing a message that appears after delay
-function simulateTyping() {
-  // No-op in server-driven mode
-}
-
-defineExpose({ appendMessage, simulateTyping });
+defineExpose({ appendMessage, addSystemMessage });
 
 // When the list is first shown or the channel changes,
 // scroll to the bottom so the newest messages are visible.
@@ -185,6 +186,7 @@ onMounted(() => {
 watch(
   () => props.channelKey,
   () => {
+    systemMessages.value = [];
     scrollToBottom();
   },
 );
@@ -257,7 +259,7 @@ watch(
 
 .msg-row:not(.msg-row--own) .flat-message :deep(.q-message-text) {
   background: var(--incoming-bg);
-  border-color: var(--incoming-border);
+  border-color:#6897f0;
 }
 
 .msg-row--own .flat-message :deep(.q-message-text) {
@@ -266,10 +268,9 @@ watch(
 }
 
 .msg-row--mention .flat-message :deep(.q-message-text) {
-  border-color: var(--mention-border);
+  border-color: #3e6360;
   border-width: 3px;
   border-style: dashed;
-
 }
 
 .flat-message :deep(.q-message-stamp) {
@@ -277,17 +278,6 @@ watch(
   font-size: 11px;
 }
 
-.flat-message.state-typing :deep(.q-message-text) {
-  border-style: dashed !important;
-  border-color: #6897f0 !important;
-  border-width: 3px;
-}
-
-.flat-message.state-peeking :deep(.q-message-text) {
-  border-style: dotted !important;
-  border-width: 3px;
-  border-color: #dcf06b !important;
-}
 .flat-message.state-sending :deep(.q-message-text) {
   border-style: dashed;
   border-color: #ff9800;

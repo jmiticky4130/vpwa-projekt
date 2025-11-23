@@ -22,7 +22,7 @@ import { useNotify } from 'src/util/notification';
 import { storeToRefs } from 'pinia';
 
 const props = defineProps<{ channelName?: string }>();
-const emit = defineEmits<{ submit: [value: string]; system: [value: string]; membersChanged: [] }>();
+const emit = defineEmits<{ submit: [value: string]; system: [value: string]; membersChanged: []; listMembers: [] }>();
 const message = ref('');
 const placeholder = computed(() =>
   props.channelName ? `Message #${props.channelName}` : 'Type /join #channel to start or join one',
@@ -246,6 +246,11 @@ async function handleCommand(cmd: Command) {
         emit('membersChanged')
       }
     }
+    return;
+  }
+
+  if (cmd.name === 'list') {
+    emit('listMembers');
     return;
   }
 

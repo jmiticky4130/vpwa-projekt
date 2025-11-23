@@ -163,6 +163,10 @@ export function useNotify() {
     Notify.create({ type: 'warning', message: `Removed @${target} from #${channel}` });
   }
 
+  function notifyRevokedAccess(channel: string) {
+    Notify.create({ type: 'negative', message: `Your access to #${channel} was revoked.` });
+  }
+
   function notifyInviteNotAllowedPrivate() {
     Notify.create({
       type: 'warning',
@@ -203,10 +207,10 @@ export function useNotify() {
     Notify.create({ type: 'info', message: `You've already voted to kick @${target}.` });
   }
 
-  function notifyKickedByAdmin(target: string, channel: string) {
+  function notifyKickedByAdmin(channel: string) {
     Notify.create({
       type: 'negative',
-      message: `@${target} was kicked from #${channel} by the creator.`,
+      message: `You were kicked from #${channel}.`,
     });
   }
 
@@ -270,6 +274,7 @@ export function useNotify() {
     notifyKickVoteAdded,
     notifyKickVoteDuplicate,
     notifyKickedByAdmin,
+    notifyRevokedAccess,
     notifyBannedCannotJoin,
     notifyInviteBlockedBanned,
     notifyUserNotFound,

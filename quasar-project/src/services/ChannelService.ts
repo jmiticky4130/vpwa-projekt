@@ -6,6 +6,8 @@ import { api } from "src/boot/axios";
 import { usePresenceStore } from "src/stores/presence-store";
 import { useAuthStore } from "src/stores/auth-store";
 import { useInviteStore } from "src/stores/invite-store";
+import { useChannelStore } from "src/stores/channel-store";
+import { useNotify } from "src/util/notification";
 
 // creating instance of this class automatically connects to given socket.io namespace
 // subscribe is called with boot params, so you can use it to dispatch actions for socket events
@@ -26,6 +28,7 @@ class ChannelSocketManager extends SocketManager {
     const channel = this.namespace.split("/").pop() as string;
     const messageStore = useMessageStore();
     const presence = usePresenceStore();
+    const channelStore = useChannelStore();
     // const inviteStore = useInviteStore();
     // Reference params to satisfy lint rules (kept for API compatibility)
     if (params && params.app) {
@@ -45,10 +48,41 @@ class ChannelSocketManager extends SocketManager {
     this.socket.off('message');
     this.socket.off('myStatus');
     this.socket.off('allStatuses');
+    this.socket.off('channel:members_updated');
+    this.socket.off('channel:kicked');
+    this.socket.off('channel:revoked');
     //this.socket.off('invite:new');
 
     this.socket.on("message", async (message: SerializedMessage) => {
       await messageStore.addIncomingMessage(channel, message);
+    });
+
+    this.socket.on("channel:members_updated", () => {
+      console.log(`[channel-socket] Members updated for ${channel}`);
+      channelStore.incrementMembersVersion(channel);
+    });
+
+    this.socket.on("channel:kicked", (payload: { userId: number }) => {
+      const auth = useAuthStore();
+      if (auth.user && auth.user.id === payload.userId) {
+        console.log(`[channel-socket] I was kicked from ${channel}`);
+        channelStore.removeChannelLocal(channel);
+        useNotify().notifyKickedByAdmin(channel);
+      }
+    });
+
+    this.socket.on("channel:revoked", (payload: { userId: number }) => {
+      const auth = useAuthStore();
+      if (auth.user && auth.user.id === payload.userId) {
+        console.log(`[channel-socket] My access was revoked from ${channel}`);
+        channelStore.removeChannelLocal(channel);
+        useNotify().notifyRevokedAccess(channel);
+      }
+    });
+
+    this.socket.on("allStatuses", (statuses: Array<{ userId: number; status: 'online'|'dnd'|'offline' }>) => {
+      console.log(`[channel-socket] Received allStatuses for ${statuses.length} users (ns ${this.namespace})`)
+      statuses.forEach(s => presence.set(s.userId, s.status));
     });
 
     this.socket.on("myStatus", (payload: { userId: number; status: 'online'|'dnd'|'offline' }) => {

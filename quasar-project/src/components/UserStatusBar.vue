@@ -1,7 +1,8 @@
 <template>
   <div class="user-status-bar">
     <q-btn
-      round
+      class="status-btn"
+      :round="$q.screen.gt.sm"
       dense
       unelevated
       size="md"
@@ -18,7 +19,8 @@
       </q-tooltip>
     </q-btn>
     <q-btn
-      round
+      class="status-btn"
+      :round="$q.screen.gt.sm"
       dense
       unelevated
       size="md"
@@ -35,7 +37,8 @@
       </q-tooltip>
     </q-btn>
     <q-btn
-      round
+      class="status-btn"
+      :round="$q.screen.gt.sm"
       dense
       unelevated
       size="md"
@@ -52,7 +55,8 @@
       </q-tooltip>
     </q-btn>
     <q-btn
-      round
+      class="status-btn"
+      :round="$q.screen.gt.sm"
       dense
       unelevated
       size="md"
@@ -108,5 +112,17 @@ function colorFor(s: 'online' | 'dnd' | 'offline' | 'directed') {
   gap: 16px;
   background: #00000094;
   border-top: 1px solid #222;
+}
+
+@media (max-width: 1023px) {
+  .user-status-bar {
+    justify-content: space-between;
+    gap: 2px;
+  }
+  .status-btn {
+    flex: 1;
+    height: 95%;
+    border-radius: 2px;
+  }
 }
 </style>
