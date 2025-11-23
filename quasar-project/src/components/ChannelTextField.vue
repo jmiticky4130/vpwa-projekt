@@ -34,7 +34,7 @@ const {
   notifyJoinedChannel,
   notifyAlreadyMember,
   notifyPrivateChannelBlocked,
-  notifyBannedCannotJoin,
+  //notifyBannedCannotJoin,
   notifyChannelCreated,
   notifyCreatorOnlyPrivacy,
   notifyChannelAlreadyState,
@@ -44,6 +44,9 @@ const {
   notifyLeftChannel,
   notifyRevokeSuccess,
   notifyRevokeNotCreator,
+  //notifyKickSuccess,
+  //notifyKickNotCreator,
+  notifyKickNotAllowedPrivate
   // notifyRevokeNotCreator, (unused after removing revoke command handling)
   /*notifyChannelDeleted,
   notifyLeftChannel,
@@ -122,13 +125,14 @@ async function handleCommand(cmd: Command) {
         notifyAlreadyMember(ch.name);
         return;
       }
-      if (uid != null && channelStore.isBanned(ch.name, uid)) {
+      /*if (uid != null && channelStore.isBanned(ch.name, uid)) {
         notifyBannedCannotJoin(ch.name);
         return;
-      }
+      }*/
       if (ch.public) {
         if (uid != null) {
-          await channelStore.addMember(ch.name);
+          const success = await channelStore.addMember(ch.name);
+          if (!success) return;
         }
         await router.push({ name: 'channel', params: { slug: ch.name } });
         notifyJoinedChannel(ch.name);
@@ -220,6 +224,31 @@ async function handleCommand(cmd: Command) {
     return;
   }
 
+  if (cmd.name === 'kick') {
+    const currentName = props.channelName || '';
+    if (!currentName) return;
+    const ch = channelStore.findByName(currentName);
+    if (!ch) return;
+    // Permission check handled by backend, but we can do a quick check for private channels
+    const isCreator = currentUser.value?.id === ch.creatorId;
+    if (!ch.public && !isCreator) {
+      notifyKickNotAllowedPrivate();
+      return;
+    }
+    const identifierRaw = cmd.args.join(' ').trim();
+    if (!identifierRaw) return;
+    const nickname = identifierRaw.replace(/^@/, '');
+    const result = await channelStore.kickMember(ch.name.toLowerCase(), nickname);
+    if (result && result.success) {
+      const { useNotify } = await import('src/util/notification');
+      useNotify().notifyKickMessage(result.message);
+      if (result.kicked) {
+        emit('membersChanged')
+      }
+    }
+    return;
+  }
+
   if (cmd.name === 'quit' || cmd.name === 'cancel') {
     const currentName = props.channelName || '';
     if (!currentName) return;
@@ -238,75 +267,6 @@ async function handleCommand(cmd: Command) {
     }
     return;
   }
-
-  /*
-  if (cmd.name === 'kick') {
-    const currentName = props.channelName || '';
-    if (!currentName) return;
-    const ch = channelStore.findByName(currentName);
-    if (!ch) return;
-    const meId = currentUser.value?.id;
-    if (meId == null) return;
-    const identifierRaw = cmd.args.join(' ').trim();
-    const identifier = identifierRaw.replace(/^@/, '');
-    const target = userStore.users.find(
-      (u) =>
-        u.nickname.toLowerCase() === identifier.toLowerCase() ||
-        u.email.toLowerCase() === identifier.toLowerCase(),
-    );
-    if (!target) {
-      notifyUserNotFound(identifier);
-      return;
-    }
-    const isCreator = currentUser.value?.id === ch.creatorId;
-    const targetIsMember = Array.isArray(ch.members) && ch.members.includes(target.id);
-
-    if (target.id === ch.creatorId) {
-      notifyKickCannotKickCreator();
-      return;
-    }
-    if (target.id === meId) {
-      notifyKickCannotKickSelf();
-      return;
-    }
-
-    if (isCreator) {
-      if (!targetIsMember && !channelStore.isBanned(ch.name, target.id)) {
-        notifyNotInChannel(target.nickname, ch.name);
-        return;
-      }
-      channelStore.banUser(ch.name, target.id);
-      notifyKickedByAdmin(target.nickname, ch.name);
-      return;
-    }
-
-    if (!ch.public) {
-      notifyKickNotAllowedPrivate();
-      return;
-    }
-
-    const meIsMember = Array.isArray(ch.members) && ch.members.includes(meId);
-    if (!meIsMember || !targetIsMember) {
-      notifyNotInChannel(target.nickname, ch.name);
-      return;
-    }
-
-    const result = channelStore.addKickVote(ch.name, meId, target.id);
-    if (!result.added) {
-      notifyKickVoteDuplicate(target.nickname);
-      return;
-    }
-
-    if (result.thresholdReached) {
-      channelStore.banUser(ch.name, target.id);
-    }
-    notifyKickVoteAdded(target.nickname, result.count);
-    return;
-  }
-
-  if (cmd.name === 'list') {
-    return;
-  }*/
 }
 
 async function submit() {

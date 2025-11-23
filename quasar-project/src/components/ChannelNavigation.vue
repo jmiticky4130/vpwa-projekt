@@ -10,8 +10,15 @@
         active-color="primary"
         @update:model-value="onSelect"
       >
-        <q-tab name="Add new channel">
-          <q-btn color="primary" unelevated @click.stop="openCreateDialog" label="Create new channel" />
+        <q-tab
+          name="Add new channel"
+          class="channel-tab create-channel-tab"
+          @click.stop="openCreateDialog"
+          color="primary"
+        >
+          <div class="tab-content row items-center justify-center full-width">
+            <span class="create-channel-label">Create new channel</span>
+          </div>
         </q-tab>
 
         <q-tab
@@ -24,34 +31,53 @@
               public: ch.public,
               private: !ch.public,
               active: ch.name === activeSlug,
-              'is-new': false, // TODO: implement new channel indicator logic
+              'is-new': channelStore.isNew(ch.name),
             },
           ]"
+          @click="channelStore.unmarkAsNew(ch.name)"
         >
-          <div class="tab-content">
+          <div class="tab-content row items-center no-wrap full-width">
             <q-badge
               v-if="currentUser?.id === ch.creatorId"
-              class="delete-badge"
-              color="red-6"
+              class="action-badge delete-badge q-mr-sm"
+              color="red-10"
               text-color="white"
               @click.stop="deleteChannel(ch.name, currentUser?.id ?? null)"
               role="button"
               aria-label="Delete channel"
             >
-              <q-icon name="delete" size="14px" />
+              <q-icon name="delete" size="15px" style="margin-top: 1px" />
             </q-badge>
             <q-badge
-              :color="ch.public ? 'green-7' : 'deep-orange-6'"
-              class="text-white channel-badge"
+              v-else
+              class="action-badge leave-badge q-mr-sm"
+              color="red-5"
+              text-color="white"
+              @click.stop="leaveChannel(ch.name)"
+              role="button"
+              aria-label="Leave channel"
             >
-              {{ ch.public ? 'Public' : 'Private' }}
+              <q-icon name="logout" size="15px" style="margin-top: 1px; transform: scaleX(-1);" />
             </q-badge>
-            <span class="channel-name">{{ ch.name }}</span>
+            
+            <span class="channel-name col text-center ellipsis">{{ ch.name }}</span>
+            
+            <q-badge
+              :color="ch.public ? 'green-8' : 'indigo-7'"
+              class="text-white channel-badge q-ml-sm"
+            >
+              <q-icon
+                :name="ch.public ? 'public' : 'lock'"
+                size="19px"
+                style="margin-top: 1px"
+                class="chan-icon"
+              />
+            </q-badge>
           </div>
         </q-tab>
       </q-tabs>
     </template>
-    <div v-else class="no-channels q-pa-md text-caption text-grey-6">No channels available</div>
+    <div v-else class="no-channels q-pa-md text-left text-grey-6">No channels available</div>
 
     <!-- Create Channel Dialog -->
     <q-dialog v-model="showCreateDialog" persistent>
@@ -81,7 +107,7 @@
             </div>
           </q-form>
         </q-card-section>
-        <q-card-actions >
+        <q-card-actions>
           <q-btn flat label="Cancel" v-close-popup />
           <q-btn color="primary" unelevated label="Create" @click="createChannel" />
         </q-card-actions>
@@ -103,8 +129,8 @@ const {
   notifyAlreadyMember,
   notifyPrivateChannelBlocked,
   notifyChannelCreated,
-  notifyBannedCannotJoin,
-  notifyChannelDeleted
+  //notifyBannedCannotJoin,
+  notifyChannelDeleted,
 } = useNotify();
 
 const emit = defineEmits<{
@@ -131,21 +157,21 @@ const showCreateDialog = ref(false);
 const nameRules = [
   (val: string) => !!(val && val.trim()) || 'Channel name is required',
   (val: string) => /^[-_a-zA-Z0-9]+$/.test(val) || 'Use letters, numbers, - or _ only',
-  (val: string) => (val?.length ?? 0) >= 2 && (val?.length ?? 0) <= 30 || '2–30 characters',
+  (val: string) => ((val?.length ?? 0) >= 2 && (val?.length ?? 0) <= 30) || '2–30 characters',
 ];
 
 onMounted(() => {
-  void channelStore.refresh()
-})
+  void channelStore.refresh();
+});
 
 watch(
   () => currentUser.value?.id,
   (id) => {
     if (id != null) {
-      void channelStore.refresh()
+      void channelStore.refresh();
     }
-  }
-)
+  },
+);
 
 function openCreateDialog() {
   newChannelName.value = '';
@@ -164,11 +190,14 @@ async function deleteChannel(name: string, uid: number | null) {
   await channelStore.removeChannel(name, uid);
   void router.push({ path: '/' });
   notifyChannelDeleted(name);
+}
 
+async function leaveChannel(name: string) {
+  await channelStore.removeMember(name);
+  void router.push({ path: '/' });
 }
 
 async function createChannel() {
-
   const ch = channelStore.findByName(newChannelName.value);
   if (ch) {
     const uid = currentUser.value?.id;
@@ -179,13 +208,14 @@ async function createChannel() {
       showCreateDialog.value = false;
       return;
     }
-    if (uid != null && channelStore.isBanned(ch.name, uid)) {
+    /*if (uid != null && channelStore.isBanned(ch.name, uid)) {
       notifyBannedCannotJoin(ch.name);
       return;
-    }
+    }*/
     if (ch.public) {
       if (uid != null) {
-        await channelStore.addMember(ch.name);
+        const success = await channelStore.addMember(ch.name);
+        if (!success) return;
       }
       await router.push({ name: 'channel', params: { slug: ch.name } });
       notifyJoinedChannel(ch.name);
@@ -196,7 +226,7 @@ async function createChannel() {
     return;
   }
 
-  const payload: {name: string, isPublic: boolean} = {
+  const payload: { name: string; isPublic: boolean } = {
     name: newChannelName.value,
     isPublic: newChannelPublic.value,
   };
@@ -242,6 +272,13 @@ watch(
   overflow: hidden;
 }
 
+@media (min-width: 1024px) {
+  .channel-tabs {
+    min-width: 256px;
+    max-width: 256px;
+  }
+}
+
 :deep(.channel-tabs-content) {
   height: 100%;
   max-height: 100%;
@@ -279,20 +316,51 @@ watch(
   border-style: solid;
 }
 
-/* hover */
 .channel-tab:hover {
   filter: brightness(1.02);
 }
 
-/* Delete badge (trashcan) */
-.delete-badge {
-  width: 22px;
-  height: 22px;
+.action-badge {
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px; /* square-ish corners */
+  border-radius: 4px;
   cursor: pointer;
   margin-right: 8px;
+}
+
+.channel-tab :deep(.q-tab__content) {
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+}
+
+.channel-tab {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.tab-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chan-icon {
+  width: 14px;
+  height: 19px;
+}
+
+.channel-name {
+  font-size: 14px;
+}
+
+.create-channel-tab {
+  background: var(--q-primary);
+  color: white;
+  margin-top: 4px;
+  margin-bottom: 12px;
 }
 </style>

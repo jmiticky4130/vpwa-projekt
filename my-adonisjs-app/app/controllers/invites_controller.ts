@@ -2,7 +2,9 @@ import type { HttpContext } from '@adonisjs/core/http'
 import Invite from '#models/invite'
 import Channel from '#models/channel'
 import User from '#models/user'
+import KickLog from '#models/kick_log'
 import { DateTime } from 'luxon'
+import { io } from '../../start/ws.js'
 
 export default class InvitesController {
   /**
@@ -72,6 +74,25 @@ export default class InvitesController {
       .first()
     if (existingMember) return response.conflict({ error: 'User already in channel' })
 
+    // Check for ban (kick logs)
+    const kickCountResult = await KickLog.query()
+      .where('channel_id', channel.id)
+      .andWhere('target_user_id', target.id)
+      .count('* as total')
+    const kickCount = Number(kickCountResult[0].$extras.total)
+
+    if (kickCount >= 3) {
+      if (channel.createdBy !== user.id) {
+        return response.forbidden({ error: 'User is banned from this channel' })
+      } else {
+        // Creator is inviting -> unban (delete logs)
+        await KickLog.query()
+          .where('channel_id', channel.id)
+          .andWhere('target_user_id', target.id)
+          .delete()
+      }
+    }
+
     // Existing pending invite? User reported needing to "delete the invite through the mail" so we
     // will replace any pending invite (email or nickname initiated) with a fresh one, instead of returning conflict.
     const existingInvite = await Invite.query()
@@ -89,6 +110,16 @@ export default class InvitesController {
       status: 'pending',
       expiresAt: DateTime.now().plus({ days: 7 }),
     })
+
+    // Notify target user if they are online in their private namespace
+    try {
+      const userNs = io.of(`/users/${target.id}`)
+      userNs.emit('invite:new')
+    } catch (e) {
+      // Ignore socket errors during invite creation
+      console.error('Failed to emit invite notification', e)
+    }
+
     return { success: true, id: invite.id }
   }
 

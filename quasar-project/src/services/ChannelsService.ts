@@ -35,6 +35,11 @@ class ChannelsService {
     await api.post('channel/revoke', payload)
   }
 
+  async kick(payload: { name: string; nickname: string }): Promise<{ success: boolean; kicked: boolean; message: string }> {
+    const resp = await api.post<{ success: boolean; kicked: boolean; message: string }>('channel/kick', payload)
+    return resp.data
+  }
+
   async setPrivacy(payload: { name: string; public: boolean }): Promise<void> {
     await api.patch('channel/privacy', payload)
   }

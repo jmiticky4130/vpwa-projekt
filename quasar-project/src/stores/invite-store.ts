@@ -2,7 +2,8 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import invitesService from 'src/services/InvitesService';
 import type { InviteItem } from 'src/contracts';
-import channelService from 'src/services/ChannelsService';
+//import channelService from 'src/services/ChannelsService';
+import { useChannelStore } from './channel-store';
 
 export const useInviteStore = defineStore('invites', () => {
   const invites = ref<InviteItem[]>([]);
@@ -41,8 +42,11 @@ export const useInviteStore = defineStore('invites', () => {
     try {
       const resp = await invitesService.respond(inviteId, 'accept');
       if (resp.channel) {
+        const channelStore = useChannelStore();
+        // Mark as new so it appears at top with highlight
+        channelStore.markAsNew(resp.channel.name);
         // Ensure channels list updates so UI shows membership
-        await channelService.list(); // called indirectly by channel store normally; could emit event instead
+        await channelStore.refresh(); 
       }
       invites.value = invites.value.filter((i) => i.id !== inviteId);
       return true;

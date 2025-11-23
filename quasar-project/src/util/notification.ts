@@ -236,6 +236,18 @@ export function useNotify() {
     Notify.create({ type: 'info', message: `@${target} is not a member of #${channel}` });
   }
 
+  function notifyKickSuccess(target: string, channel: string) {
+    Notify.create({ type: 'warning', message: `Kicked @${target} from #${channel}` });
+  }
+
+  function notifyKickNotCreator() {
+    Notify.create({ type: 'warning', message: 'Only the channel creator can kick members.' });
+  }
+
+  function notifyKickMessage(msg: string) {
+    Notify.create({ type: 'info', message: msg });
+  }
+
   return {
     notifyJoinedChannel,
     notifyAlreadyMember,
@@ -250,6 +262,8 @@ export function useNotify() {
     notifyRevokeSuccess,
     notifyInviteNotAllowedPrivate,
     notifyRevokeNotCreator,
+    notifyKickSuccess,
+    notifyKickNotCreator,
     notifyKickNotAllowedPrivate,
     notifyKickCannotKickCreator,
     notifyKickCannotKickSelf,
@@ -262,5 +276,6 @@ export function useNotify() {
     notifyAlreadyInChannel,
     notifyNotInChannel,
     notifyMessage,
+    notifyKickMessage,
   };
 }

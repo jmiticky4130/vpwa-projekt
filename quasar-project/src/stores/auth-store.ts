@@ -107,6 +107,8 @@ export const useAuthStore = defineStore('auth', () => {
       // Auto-connect to all member channels after user is authenticated
       if (userData !== null) {
         await connectToMemberChannels()
+        // Connect to private user namespace for invites
+        ChannelService.connectUserSocket(userData.id)
       }
       
       return userData !== null
@@ -172,61 +174,32 @@ export const useAuthStore = defineStore('auth', () => {
       console.log('[auth] Setting status to', newStatus);
       user.value.status = newStatus;
 
-      if (newStatus === 'offline') {
-        console.log('[auth] Offline mode enabled, broadcasting offline then disconnecting sockets');
+      // Broadcast status change to all connected channels
+      // We no longer disconnect on 'offline' so user can still receive updates
+      void (async () => {
         try {
+          // If coming from a disconnected state (legacy behavior or network issue), ensure we are connected
+          if (oldStatus === 'offline' && newStatus !== 'offline') {
+             await connectToMemberChannels()
+             const { useMessageStore } = await import('./message-store')
+             const ms = useMessageStore()
+             await ms.flushAllOfflineQueues()
+             for (const ch of ms.joinedChannels) {
+               await ms.revalidateChannel(ch)
+             }
+          }
+
           for (const ch of ChannelService.joined()) {
             const manager = ChannelService.in(ch)
             if (manager) {
-              console.log(`[auth] Emitting setStatus('offline') to channel ${ch} before disconnect`)
-              manager.socket.emit('setStatus', 'offline')
+              console.log(`[auth] Emitting setStatus('${newStatus}') to channel ${ch}`)
+              manager.socket.emit('setStatus', newStatus)
             }
           }
-        } finally {
-          ChannelService.leaveAll()
+        } catch (e) {
+          console.warn('[auth] Failed to broadcast status change', e)
         }
-        // No emit needed when going offline (sockets closed)
-      } else if (oldStatus === 'offline') {
-        console.log('[auth] Exiting offline mode, reconnecting sockets & flushing queued messages');
-        // Wait for sockets to reconnect, then flush queued messages
-        void (async () => {
-          try {
-            await connectToMemberChannels();
-            const { useMessageStore } = await import('./message-store')
-            console.log('[auth] Flushing all offline message queues');
-            const ms = useMessageStore()
-            await ms.flushAllOfflineQueues()
-            for (const ch of ms.joinedChannels) {
-              await ms.revalidateChannel(ch)
-            }
-            // Broadcast current status to all joined sockets (via ChannelService)
-            for (const ch of ChannelService.joined()) {
-              const manager = ChannelService.in(ch)
-              if (manager) {
-                console.log(`[auth] Emitting setStatus('${newStatus}') to channel ${ch}`)
-                manager.socket.emit('setStatus', newStatus)
-              }
-            }
-          } catch (e) {
-            console.warn('[auth] Failed flushing offline queues after going online', e)
-          }
-        })()
-      } else {
-        // Status change between non-offline states: broadcast immediately
-        void (() => {
-          try {
-            for (const ch of ChannelService.joined()) {
-              const manager = ChannelService.in(ch)
-              if (manager) {
-                console.log(`[auth] Emitting setStatus('${newStatus}') to channel ${ch}`)
-                manager.socket.emit('setStatus', newStatus)
-              }
-            }
-          } catch (e) {
-            console.warn('[auth] Failed to broadcast status change', e)
-          }
-        })()
-      }
+      })()
     }
   }
 

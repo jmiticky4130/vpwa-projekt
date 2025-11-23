@@ -22,6 +22,7 @@ app.ready(() => {
 
   // Register channel namespace handlers
   registerChannelNamespace()
+  registerUserNamespace()
 })
 
 // Helper to serialize Message to the frontend shape
@@ -74,6 +75,21 @@ function registerChannelNamespace() {
         return
       }
 
+      // Send current statuses of all other users in this namespace to the new connection
+      const sockets = await socket.nsp.fetchSockets()
+      const statuses = sockets
+        .map((s) => {
+          const u = s.data.user as User
+          const st = (s.data as any).status || 'offline'
+          if (!u || s.id === socket.id) return null
+          return { userId: u.id, status: st }
+        })
+        .filter((s) => s !== null)
+      
+      if (statuses.length > 0) {
+        socket.emit('allStatuses', statuses)
+      }
+
       // addMessage event: persists and broadcasts a new message
       socket.on('addMessage', async (body: string, cb: (err: Error | null, res?: any) => void) => {
         try {
@@ -85,8 +101,8 @@ function registerChannelNamespace() {
           })
           await created.load('author')
           const payload = serializeMessage(created, created.author)
-          // broadcast to everyone in this namespace
-          socket.nsp.emit('message', payload)
+          // broadcast to everyone in the 'active' room (online/dnd users)
+          socket.nsp.to('active').emit('message', payload)
           logger.info(
             '[ws] message broadcast in %s by %s (msg %s)',
             channel.name,
@@ -110,6 +126,13 @@ function registerChannelNamespace() {
             }
             ;(socket.data as any).status = status
 
+            // Manage "active" room membership for message delivery
+            if (status === 'offline') {
+              socket.leave('active')
+            } else {
+              socket.join('active')
+            }
+
             const payload = { userId: user.id, status }
             // Emit only to other sockets in this namespace
             socket.broadcast.emit('myStatus', payload)
@@ -131,9 +154,39 @@ function registerChannelNamespace() {
         if (reason !== 'io server disconnect') {
           logger.debug('[ws] disconnect %s %s', socket.id, reason)
         }
+        
+        // Broadcast offline status to others
+        const payload = { userId: user.id, status: 'offline' }
+        socket.broadcast.emit('myStatus', payload)
       })
     } catch (e) {
       logger.error('[ws] Unhandled error on connection %s: %s', socket.id, (e as any)?.message)
+      socket.disconnect(true)
+    }
+  })
+}
+
+// Handle user-specific namespace: /users/:id
+function registerUserNamespace() {
+  const userNs = io.of(/^\/users\/\d+$/)
+  // Attach auth middleware to dynamic namespace
+  userNs.use(authMiddleware.wsHandle.bind(authMiddleware))
+  
+  userNs.on('connection', async (socket) => {
+    try {
+      const nsName: string = socket.nsp.name // e.g. /users/1
+      const targetUserId = Number(nsName.split('/').pop())
+      const user: User | undefined = socket.data?.user
+
+      if (!user || user.id !== targetUserId) {
+        logger.warn('[ws] Unauthorized access to user namespace %s by user %s', nsName, user?.id)
+        socket.disconnect(true)
+        return
+      }
+
+      logger.info('[ws] User %s connected to private namespace %s', user.id, nsName)
+    } catch (e) {
+      logger.error('[ws] Error in user namespace connection: %s', (e as any)?.message)
       socket.disconnect(true)
     }
   })
