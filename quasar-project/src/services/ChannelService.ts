@@ -5,15 +5,28 @@ import { useMessageStore } from "src/stores/message-store";
 import { api } from "src/boot/axios";
 import { usePresenceStore } from "src/stores/presence-store";
 import { useAuthStore } from "src/stores/auth-store";
+import { useInviteStore } from "src/stores/invite-store";
 
 // creating instance of this class automatically connects to given socket.io namespace
 // subscribe is called with boot params, so you can use it to dispatch actions for socket events
 // you have access to socket.io socket using this.socket
+class UserSocketManager extends SocketManager {
+  public subscribe(): void {
+    const inviteStore = useInviteStore();
+    
+    this.socket.on("invite:new", () => {
+      console.log(`[user-socket] Received new invite notification`)
+      void inviteStore.refresh()
+    });
+  }
+}
+
 class ChannelSocketManager extends SocketManager {
   public subscribe(params: BootParams): void {
     const channel = this.namespace.split("/").pop() as string;
     const messageStore = useMessageStore();
     const presence = usePresenceStore();
+    // const inviteStore = useInviteStore();
     // Reference params to satisfy lint rules (kept for API compatibility)
     if (params && params.app) {
       // no-op
@@ -31,6 +44,8 @@ class ChannelSocketManager extends SocketManager {
     // De-duplicate handlers in case of HMR or accidental multiple subscribe calls
     this.socket.off('message');
     this.socket.off('myStatus');
+    this.socket.off('allStatuses');
+    //this.socket.off('invite:new');
 
     this.socket.on("message", async (message: SerializedMessage) => {
       await messageStore.addIncomingMessage(channel, message);
@@ -98,6 +113,10 @@ class ChannelService {
       params: { channelName, skip, limit }
     });
     return response.data;
+  }
+
+  public connectUserSocket(userId: number): void {
+    new UserSocketManager(`/users/${userId}`);
   }
 }
 

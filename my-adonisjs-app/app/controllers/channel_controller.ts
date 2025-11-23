@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import Channel from '#models/channel'
 import Membership from '#models/membership'
+import KickLog from '#models/kick_log'
 import { DateTime } from 'luxon'
 import { createChannelValidator, channelNameValidator } from '../validators/channel.js'
 
@@ -18,6 +19,17 @@ export default class ChannelController {
     if (existing) {
       // If existing channel is public and user is not yet a member, attach membership and return channel.
       if (existing.public) {
+        // Check for ban (3 or more kick logs)
+        const kickCountResult = await KickLog.query()
+          .where('channel_id', existing.id)
+          .andWhere('target_user_id', user.id)
+          .count('* as total')
+        
+        const kickCount = Number(kickCountResult[0].$extras.total)
+        if (kickCount >= 3) {
+          return response.forbidden({ error: 'You are banned from this channel' })
+        }
+
         const membership = await Membership.query()
           .where('user_id', user.id)
           .andWhere('channel_id', existing.id)
@@ -74,6 +86,7 @@ export default class ChannelController {
     if (channel.createdBy !== user.id) {
       return response.forbidden({ error: 'Only the channel creator can delete this channel' })
     }
+    await KickLog.query().where('channel_id', channel.id).delete()
     await channel.delete()
     return { success: true }
   }
@@ -110,6 +123,17 @@ export default class ChannelController {
     const channel = await Channel.findBy('name', name)
     if (!channel) return response.notFound({ error: 'Channel not found' })
 
+    // Check for ban (3 or more kick logs)
+    const kickCountResult = await KickLog.query()
+      .where('channel_id', channel.id)
+      .andWhere('target_user_id', user.id)
+      .count('* as total')
+    
+    const kickCount = Number(kickCountResult[0].$extras.total)
+    if (kickCount >= 3) {
+      return response.forbidden({ error: 'You are banned from this channel' })
+    }
+
     // Check existing membership
     const existing = await Membership.query()
       .where('user_id', user.id)
@@ -136,6 +160,7 @@ export default class ChannelController {
 
     // If the creator leaves/cancels, delete the channel entirely
     if (channel.createdBy === user.id) {
+      await KickLog.query().where('channel_id', channel.id).delete()
       await channel.delete()
       return { success: true, deleted: true }
     }
@@ -214,5 +239,89 @@ export default class ChannelController {
 
     await target.related('channels').detach([channel.id])
     return { success: true }
+  }
+
+  /**
+   * POST /channel/kick
+   * Body: { name: string, nickname: string }
+   * Public channels: Any member can kick.
+   * Private channels: Only creator can kick.
+   * Action: Immediate removal.
+   * Logs: Creator (3 logs), Others (1 log).
+   * Restriction: A user cannot kick the same target twice in the same channel.
+   */
+  async kick({ auth, request, response }: HttpContext) {
+    const user = await auth.use('api').authenticate()
+    const nameRaw = request.input('name')
+    const nicknameRaw = request.input('nickname')
+    if (typeof nameRaw !== 'string' || nameRaw.trim() === '') {
+      return response.badRequest({ error: 'Invalid channel name' })
+    }
+    if (typeof nicknameRaw !== 'string' || nicknameRaw.trim() === '') {
+      return response.badRequest({ error: 'Invalid nickname' })
+    }
+    const name = nameRaw.trim().toLowerCase()
+    const nickname = nicknameRaw.trim().toLowerCase()
+
+    const channel = await Channel.findBy('name', name)
+    if (!channel) return response.notFound({ error: 'Channel not found' })
+
+    // Permission check
+    const isCreator = channel.createdBy === user.id
+    if (!channel.public && !isCreator) {
+      return response.forbidden({ error: 'Only the channel creator can kick members in private channels' })
+    }
+
+    // Find target user by nickname (case-insensitive)
+    const { default: UserModel } = await import('#models/user')
+    const target = await UserModel.query().whereRaw('LOWER(nickname) = ?', [nickname]).first()
+    if (!target) return response.notFound({ error: 'User not found' })
+
+    // Self-kick prevention
+    if (target.id === user.id) {
+      return response.forbidden({ error: 'You cannot kick yourself' })
+    }
+
+    // Creator immunity
+    if (target.id === channel.createdBy) {
+      return response.forbidden({ error: 'You cannot kick the channel creator' })
+    }
+
+    // Check membership
+    const membership = await Membership.query()
+      .where('user_id', target.id)
+      .andWhere('channel_id', channel.id)
+      .first()
+    if (!membership) {
+      return response.conflict({ error: 'User is not a member of this channel' })
+    }
+
+    // Check if already kicked (persistent check)
+    const existingKick = await KickLog.query()
+      .where('channel_id', channel.id)
+      .andWhere('target_user_id', target.id)
+      .andWhere('voter_user_id', user.id)
+      .first()
+    
+    if (existingKick) {
+      return response.conflict({ error: 'You have already kicked this user' })
+    }
+
+    // Add logs (Creator: 3, Others: 1)
+    const weight = isCreator ? 3 : 1
+    const logs = []
+    for (let i = 0; i < weight; i++) {
+      logs.push({
+        channelId: channel.id,
+        targetUserId: target.id,
+        voterUserId: user.id,
+        createdAt: DateTime.now(),
+      })
+    }
+    await KickLog.createMany(logs)
+
+    // Immediate kick
+    await target.related('channels').detach([channel.id])
+    return { success: true, kicked: true, message: `User kicked` }
   }
 }

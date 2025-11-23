@@ -9,12 +9,24 @@ export const useChannelStore = defineStore('channels', () => {
   const channels = ref<Channel[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const newlyAccepted = ref<Set<string>>(new Set())
 
   const setError = (e: unknown) => {
     if (e instanceof Error) error.value = e.message
     else error.value = 'Unknown error'
   }
 
+  function markAsNew(channelName: string) {
+    newlyAccepted.value.add(channelName.toLowerCase())
+  }
+
+  function unmarkAsNew(channelName: string) {
+    newlyAccepted.value.delete(channelName.toLowerCase())
+  }
+
+  function isNew(channelName: string) {
+    return newlyAccepted.value.has(channelName.toLowerCase())
+  }
 
   async function refresh(): Promise<void> {
     loading.value = true
@@ -45,13 +57,18 @@ export const useChannelStore = defineStore('channels', () => {
     
     const auth = useAuthStore()
     const userId = params?.userId ?? auth.user?.id ?? null
-    const newSet = new Set((params?.newchannels ?? []).map((s) => s.toLowerCase()))
+    // Merge params.newchannels with store's newlyAccepted
+    const newSet = new Set([
+      ...(params?.newchannels ?? []).map((s) => s.toLowerCase()),
+      ...newlyAccepted.value
+    ])
+    
     return [...channels.value]
       .filter((c) => userId != null && Array.isArray(c.members) && c.members.includes(userId))
       .sort((a, b) => {
         const aNew = newSet.has(a.name.toLowerCase())
         const bNew = newSet.has(b.name.toLowerCase())
-        if (aNew !== bNew) return bNew ? 1 : -1
+        if (aNew !== bNew) return aNew ? -1 : 1 // New channels first
         return a.name.localeCompare(b.name)
       })
   }
@@ -131,6 +148,17 @@ export const useChannelStore = defineStore('channels', () => {
     }
   }
 
+  async function kickMember(name: string, nickname: string) {
+    try {
+      const result = await channelService.kick({ name, nickname })
+      await refresh()
+      return result
+    } catch (e) {
+      setError(e)
+      return null
+    }
+  }
+
   // Not implemented in backend yet - legacy code
   function isBanned(name: string, userId: number): boolean {
     const ch = findByName(name);
@@ -189,10 +217,14 @@ export const useChannelStore = defineStore('channels', () => {
     addMember,
     removeMember,
     revokeMember,
+    kickMember,
     removeChannel,
     isBanned,
     banUser,
     clearBan,
     addKickVote,
+    markAsNew,
+    unmarkAsNew,
+    isNew
   };
 });

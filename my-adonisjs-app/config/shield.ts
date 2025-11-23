@@ -29,6 +29,7 @@ const shieldConfig = defineConfig({
       '/channel/list',
       '/channel/privacy',
       '/channel/revoke',
+      '/channel/kick',
       '/invites',
       '/invites/create',
       '/invites/respond',

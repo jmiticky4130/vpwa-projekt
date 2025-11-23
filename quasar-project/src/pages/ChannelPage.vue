@@ -20,16 +20,26 @@
       </div>
       <div class="user-list-panel">
         <div class="user-list-header row q-pa-sm q-gutter-sm">
-          <q-btn-toggle
-            v-model="panelMode"
-            toggle-color="primary"
-            color="grey-8"
-            dense
-            :options="[
-              {label: 'Users', value: 'users'},
-              {label: 'Invites', value: 'invites'}
-            ]"
-          />
+          <div class="row q-gutter-xs full-width justify-center">
+            <q-btn
+              :color="panelMode === 'users' ? 'primary' : 'grey-8'"
+              label="Users"
+              dense
+              no-caps
+              class="col"
+              @click="panelMode = 'users'"
+            />
+            <q-btn
+              :color="panelMode === 'invites' ? 'primary' : 'grey-8'"
+              label="Invites"
+              dense
+              no-caps
+              class="col"
+              @click="panelMode = 'invites'"
+            >
+              <q-badge color="red" floating v-if="inviteCount > 0">{{ inviteCount }}</q-badge>
+            </q-btn>
+          </div>
         </div>
         <div class="user-list-body">
           <component :is="panelComponent" v-bind="panelProps" />
@@ -49,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import ChannelTextField from 'src/components/ChannelTextField.vue';
 import UserList from 'src/components/UserList.vue';
@@ -58,6 +68,7 @@ import { useAuthStore } from 'src/stores/auth-store';
 import { storeToRefs } from 'pinia';
 import { useChannelStore } from 'src/stores/channel-store';
 import { useMessageStore } from 'src/stores/message-store';
+import { useInviteStore } from 'src/stores/invite-store';
 import type { Channel } from 'src/contracts/Channel';
 import type { User } from 'src/contracts';
 import usersService from '../services/UsersService';
@@ -67,6 +78,7 @@ import { usePresenceStore } from 'src/stores/presence-store';
 const route = useRoute();
 const channelStore = useChannelStore();
 const messageStore = useMessageStore();
+const inviteStore = useInviteStore();
 
 const channel = computed<Channel | undefined>(() => {
   const slug = String(route.params.slug || '').toLowerCase();
@@ -106,6 +118,12 @@ const panelProps = computed(() => {
   return panelMode.value === 'users'
     ? { users: channelUsersWithStatus.value, currentUserEmail: currentUserEmail.value }
     : {}
+})
+
+const inviteCount = computed(() => inviteStore.invites.length)
+
+onMounted(() => {
+  void inviteStore.refresh()
 })
 
 watch(

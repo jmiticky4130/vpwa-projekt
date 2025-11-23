@@ -24,6 +24,7 @@ router
     router.post('join', [ChannelController, 'join']).use(middleware.auth())
     router.post('leave', [ChannelController, 'leave']).use(middleware.auth())
     router.post('revoke', [ChannelController, 'revoke']).use(middleware.auth())
+    router.post('kick', [ChannelController, 'kick']).use(middleware.auth())
     router.patch('privacy', [ChannelController, 'privacy']).use(middleware.auth())
   })
   .prefix('channel')
