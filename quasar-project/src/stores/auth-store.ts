@@ -159,6 +159,7 @@ export const useAuthStore = defineStore('auth', () => {
       
       console.log("[auth] Logging out, disconnecting all sockets");
       ChannelService.leaveAll()
+      ChannelService.disconnectUserSocket()
       
       console.log("[auth] Resetting message store");
       ms.reset()
@@ -175,10 +176,8 @@ export const useAuthStore = defineStore('auth', () => {
       user.value.status = newStatus;
 
       // Broadcast status change to all connected channels
-      // We no longer disconnect on 'offline' so user can still receive updates
       void (async () => {
         try {
-          // If coming from a disconnected state (legacy behavior or network issue), ensure we are connected
           if (oldStatus === 'offline' && newStatus !== 'offline') {
              await connectToMemberChannels()
              const { useMessageStore } = await import('./message-store')

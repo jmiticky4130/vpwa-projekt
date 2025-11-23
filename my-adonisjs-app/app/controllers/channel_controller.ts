@@ -7,11 +7,6 @@ import { createChannelValidator, channelNameValidator } from '../validators/chan
 import { io } from '../../start/ws.js'
 
 export default class ChannelController {
-  /**
-   * POST /channel/create
-   * Body: { name: string, isPublic: boolean }
-   * Creates a channel and adds creator as a member
-   */
   async create({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const { name, isPublic } = await request.validateUsing(createChannelValidator)
@@ -74,11 +69,6 @@ export default class ChannelController {
     }
   }
 
-  /**
-   * POST /channel/delete
-   * Body: { name: string }
-   * Only channel creator can delete
-   */
   async delete({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const { name } = await request.validateUsing(channelNameValidator)
@@ -93,10 +83,6 @@ export default class ChannelController {
     return { success: true }
   }
 
-  /**
-   * GET /channel/list
-   * Returns channels the user is a member of
-   */
   async list({ auth }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const channels = await user
@@ -114,10 +100,6 @@ export default class ChannelController {
     }))
   }
 
-  /**
-   * POST /channel/join
-   * Body: { name: string }
-   */
   async join({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const { name } = await request.validateUsing(channelNameValidator)
@@ -150,10 +132,6 @@ export default class ChannelController {
     return { success: true }
   }
 
-  /**
-   * POST /channel/leave
-   * Body: { name: string }
-   */
   async leave({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const { name } = await request.validateUsing(channelNameValidator)
@@ -174,11 +152,6 @@ export default class ChannelController {
     return { success: true, left: true }
   }
 
-  /**
-   * PATCH /channel/privacy
-   * Body: { name: string, public: boolean }
-   * Only creator can change visibility
-   */
   async privacy({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const nameRaw = request.input('name')
@@ -203,11 +176,6 @@ export default class ChannelController {
     return { success: true, public: channel.public }
   }
 
-  /**
-   * POST /channel/revoke
-   * Body: { name: string, nickname: string }
-   * Only channel creator can revoke (remove) a member by nickname
-   */
   async revoke({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const nameRaw = request.input('name')
@@ -247,15 +215,6 @@ export default class ChannelController {
     return { success: true }
   }
 
-  /**
-   * POST /channel/kick
-   * Body: { name: string, nickname: string }
-   * Public channels: Any member can kick.
-   * Private channels: Only creator can kick.
-   * Action: Immediate removal.
-   * Logs: Creator (3 logs), Others (1 log).
-   * Restriction: A user cannot kick the same target twice in the same channel.
-   */
   async kick({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const nameRaw = request.input('name')
@@ -331,5 +290,21 @@ export default class ChannelController {
     io.of(`/channels/${channel.name}`).emit('channel:members_updated')
     io.of(`/channels/${channel.name}`).emit('channel:kicked', { userId: target.id })
     return { success: true, kicked: true, message: `User kicked` }
+  }
+
+  /**
+   * GET /channel/exists
+   * Query: { name: string }
+   * Checks if a channel exists by name
+   */
+  async exists({ request, response }: HttpContext) {
+    const nameRaw = request.input('name')
+    if (typeof nameRaw !== 'string' || nameRaw.trim() === '') {
+      return response.badRequest({ error: 'Invalid channel name' })
+    }
+    const name = nameRaw.trim()
+    // Check exact match as per create logic
+    const channel = await Channel.findBy('name', name)
+    return { exists: !!channel }
   }
 }

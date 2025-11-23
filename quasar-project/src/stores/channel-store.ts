@@ -175,6 +175,10 @@ export const useChannelStore = defineStore('channels', () => {
     }
   }
 
+  async function checkChannelExists(name: string): Promise<boolean> {
+    return await channelService.checkExists(name)
+  }
+
   return {
   channels,
   loading,
@@ -194,6 +198,7 @@ export const useChannelStore = defineStore('channels', () => {
     isNew,
     membersVersion,
     incrementMembersVersion,
-    removeChannelLocal
+    removeChannelLocal,
+    checkChannelExists
   };
 });

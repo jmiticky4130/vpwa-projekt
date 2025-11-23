@@ -46,7 +46,9 @@ const {
   notifyRevokeNotCreator,
   //notifyKickSuccess,
   //notifyKickNotCreator,
-  notifyKickNotAllowedPrivate
+  notifyKickNotAllowedPrivate,
+  notifyChannelAlreadyExists,
+  //notifyChannelNotFound,
   // notifyRevokeNotCreator, (unused after removing revoke command handling)
   /*notifyChannelDeleted,
   notifyLeftChannel,
@@ -75,9 +77,9 @@ function tryParseCommand(value: string): Command | null {
   if (parts.length === 0 || !parts[0]) return null;
   const cmdName = parts[0].slice(1).toLowerCase();
   if (cmdName === 'join') {
-    const arg = parts[1];
-    if (arg) {
-      return { name: 'join', args: [arg] };
+    const args = parts.slice(1);
+    if (args.length > 0) {
+      return { name: 'join', args };
     }
   }
   if (cmdName === 'public') {
@@ -112,39 +114,49 @@ function tryParseCommand(value: string): Command | null {
 
 async function handleCommand(cmd: Command) {
   if (cmd.name === 'join') {
-    const targetNameRaw = cmd.args.join(' ').trim();
+    const targetNameRaw = cmd.args[0]?.trim();
+    const mode = cmd.args[1]?.toLowerCase(); // 'public' | 'private' | undefined
+
     if (!targetNameRaw) return;
     const targetName = targetNameRaw.replace(/^#/, '');
 
-    const ch = channelStore.findByName(targetName);
-    if (ch) {
-      const uid = currentUser.value?.id;
-      const isMember = uid != null && Array.isArray(ch.members) && ch.members.includes(uid);
-      if (isMember) {
-        await router.push({ name: 'channel', params: { slug: ch.name } });
-        notifyAlreadyMember(ch.name);
+    // Check if channel exists on backend (covers channels user is not a member of)
+    const exists = await channelStore.checkChannelExists(targetName);
+
+    if (exists) {
+      // If user explicitly requested to create a channel (by specifying mode), fail if it exists
+      if (mode === 'public' || mode === 'private') {
+        notifyChannelAlreadyExists(targetName);
         return;
       }
-      /*if (uid != null && channelStore.isBanned(ch.name, uid)) {
-        notifyBannedCannotJoin(ch.name);
-        return;
-      }*/
-      if (ch.public) {
-        if (uid != null) {
-          const success = await channelStore.addMember(ch.name);
-          if (!success) return;
+
+      // Otherwise, try to join existing channel
+      const ch = channelStore.findByName(targetName);
+      // If found in local store (user is member), navigate
+      if (ch) {
+        const uid = currentUser.value?.id;
+        const isMember = uid != null && Array.isArray(ch.members) && ch.members.includes(uid);
+        if (isMember) {
+          await router.push({ name: 'channel', params: { slug: ch.name } });
+          notifyAlreadyMember(ch.name);
+          return;
         }
-        await router.push({ name: 'channel', params: { slug: ch.name } });
-        notifyJoinedChannel(ch.name);
-      } else {
-        notifyPrivateChannelBlocked(ch.name);
+      }
+      if (currentUser.value?.id != null) {
+        const success = await channelStore.addMember(targetName);
+        if (success) {
+          await router.push({ name: 'channel', params: { slug: targetName } });
+          notifyJoinedChannel(targetName);
+        } else {
+          notifyPrivateChannelBlocked(targetName);
+        }
       }
       return;
     }
-    // If channel doesn't exist yet, create it as public by default.
+    const isPublic = mode === 'private' ? false : true;
     const payload: { name: string; isPublic: boolean } = {
       name: targetName,
-      isPublic: true,
+      isPublic: isPublic,
     };
     const created = await channelStore.addChannel(payload);
     if (!created) return;
@@ -154,7 +166,7 @@ async function handleCommand(cmd: Command) {
       await channelStore.addMember(created.name);
     }
     await router.push({ name: 'channel', params: { slug: created.name } });
-    notifyChannelCreated(created.name, 'public');
+    notifyChannelCreated(created.name, isPublic ? 'public' : 'private');
     return;
   }
 

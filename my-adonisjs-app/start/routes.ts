@@ -26,6 +26,7 @@ router
     router.post('revoke', [ChannelController, 'revoke']).use(middleware.auth())
     router.post('kick', [ChannelController, 'kick']).use(middleware.auth())
     router.patch('privacy', [ChannelController, 'privacy']).use(middleware.auth())
+    router.get('exists', [ChannelController, 'exists']).use(middleware.auth())
   })
   .prefix('channel')
 

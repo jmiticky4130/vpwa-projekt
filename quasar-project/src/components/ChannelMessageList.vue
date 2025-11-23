@@ -1,11 +1,15 @@
 <template>
   <div class="message-list" ref="listEl">
+    <div v-if="!isChannelLoaded" class="row justify-center q-my-md">
+      <q-spinner color="primary" name="dots" size="40px" />
+    </div>
     <q-infinite-scroll
+      v-else
       @load="loadMoreMessages"
       :offset="100"
       reverse
-      scroll-target=".message-list"
-      :key="props.channelKey + userStatus"
+      :scroll-target="listEl"
+      :key="props.channelKey"
     >
       <template v-slot:loading>
         <div class="row justify-center q-my-md">
@@ -64,6 +68,10 @@ const props = defineProps<{ channelKey: string }>();
 // Pinia message store
 const messageStore = useMessageStore();
 
+const isChannelLoaded = computed(() => {
+  return messageStore.totals[props.channelKey] !== undefined;
+});
+
 // Map backend messages to UI message type expected by q-chat-message
 function toViewMessage(m: SerializedMessage): Message {
   return {
@@ -115,11 +123,9 @@ const displayedMessages = computed<Message[]>(() => {
 
   return [...persisted, ...queued, ...system].sort((a, b) => a.createdAt - b.createdAt);
 });
-const listEl = ref<HTMLElement | null>(null);
+const listEl = ref<HTMLElement>();
 
 const { user } = storeToRefs(useAuthStore());
-// Basic mode: assume online since per-user status store was removed
-const userStatus = computed(() => user.value?.status ?? 'online');
 const currentUserDisplay = computed(() => user.value?.nickname ?? '');
 
 async function loadMoreMessages(_index: number, done: (stop?: boolean) => void) {
@@ -177,8 +183,6 @@ function isDirectedToCurrentUser(m: Message) {
 
 defineExpose({ appendMessage, addSystemMessage });
 
-// When the list is first shown or the channel changes,
-// scroll to the bottom so the newest messages are visible.
 onMounted(() => {
   scrollToBottom();
 });
@@ -200,6 +204,12 @@ watch(
     }
   }
 );
+
+watch(isChannelLoaded, (val) => {
+  if (val) {
+    scrollToBottom();
+  }
+});
 </script>
 
 <style scoped>
@@ -259,7 +269,7 @@ watch(
 
 .msg-row:not(.msg-row--own) .flat-message :deep(.q-message-text) {
   background: var(--incoming-bg);
-  border-color:#6897f0;
+  border-color: var(--incoming-border);
 }
 
 .msg-row--own .flat-message :deep(.q-message-text) {
@@ -267,8 +277,8 @@ watch(
   border-color: var(--own-border);
 }
 
-.msg-row--mention .flat-message :deep(.q-message-text) {
-  border-color: #3e6360;
+.msg-row.msg-row--mention .flat-message :deep(.q-message-text) {
+  border-color: #6897f0;
   border-width: 3px;
   border-style: dashed;
 }

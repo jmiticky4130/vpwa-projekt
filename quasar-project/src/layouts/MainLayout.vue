@@ -11,7 +11,9 @@
       >
         <q-tab name="channels" label="Channels" />
         <q-tab name="chat" label="Chat" />
-        <q-tab name="members" label="Members / Invites" />
+        <q-tab name="members" label="Members / Invites">
+          <q-badge color="red" floating v-if="inviteCount > 0">{{ inviteCount }}</q-badge>
+        </q-tab>
       </q-tabs>
       <q-toolbar v-else>
         <q-toolbar-title class="app-title text-weight-medium cursor-pointer" @click="goHome">
@@ -66,7 +68,7 @@
                 </q-btn>
               </div>
             </div>
-            <div style="flex: 1; overflow-y: auto; min-height: 0;">
+            <div class="mobile-members-list">
               <UserList 
                 v-if="panelMode === 'users'" 
                 :users="channelUsersWithStatus" 
@@ -208,5 +210,14 @@ async function logout() {
 .mobile-hide-members :deep(.user-list-panel) {
   display: none !important;
 }
-
+.mobile-members-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: none;
+}
+.mobile-members-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
 </style>

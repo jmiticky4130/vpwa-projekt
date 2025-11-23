@@ -13,11 +13,12 @@
         <q-tab
           name="Add new channel"
           class="channel-tab create-channel-tab"
+          style="color: white;"
           @click.stop="openCreateDialog"
           color="primary"
         >
           <div class="tab-content row items-center justify-center full-width">
-            <span class="create-channel-label">Create new channel</span>
+            <span style="color: white;" class="create-channel-label">Create new channel</span>
           </div>
         </q-tab>
 
@@ -125,12 +126,13 @@ import { storeToRefs } from 'pinia';
 import { useNotify } from 'src/util/notification';
 import { useAuthStore } from 'src/stores/auth-store';
 const {
-  notifyJoinedChannel,
+  //notifyJoinedChannel,
   notifyAlreadyMember,
-  notifyPrivateChannelBlocked,
+  //notifyPrivateChannelBlocked,
   notifyChannelCreated,
   //notifyBannedCannotJoin,
   notifyChannelDeleted,
+  notifyChannelAlreadyExists,
 } = useNotify();
 
 const emit = defineEmits<{
@@ -198,36 +200,27 @@ async function leaveChannel(name: string) {
 }
 
 async function createChannel() {
-  const ch = channelStore.findByName(newChannelName.value);
-  if (ch) {
-    const uid = currentUser.value?.id;
-    const isMember = uid != null && Array.isArray(ch.members) && ch.members.includes(uid);
-    if (isMember) {
+  const name = newChannelName.value.trim();
+  if (!name) return;
+
+  // Check global existence first
+  const exists = await channelStore.checkChannelExists(name);
+  if (exists) {
+    
+    const ch = channelStore.findByName(name);
+    if (ch) {
+      // User is already a member
       await router.push({ name: 'channel', params: { slug: ch.name } });
       notifyAlreadyMember(ch.name);
       showCreateDialog.value = false;
       return;
     }
-    /*if (uid != null && channelStore.isBanned(ch.name, uid)) {
-      notifyBannedCannotJoin(ch.name);
-      return;
-    }*/
-    if (ch.public) {
-      if (uid != null) {
-        const success = await channelStore.addMember(ch.name);
-        if (!success) return;
-      }
-      await router.push({ name: 'channel', params: { slug: ch.name } });
-      notifyJoinedChannel(ch.name);
-    } else {
-      notifyPrivateChannelBlocked(ch.name);
-    }
-    showCreateDialog.value = false;
+    notifyChannelAlreadyExists(name);
     return;
   }
 
   const payload: { name: string; isPublic: boolean } = {
-    name: newChannelName.value,
+    name: name,
     isPublic: newChannelPublic.value,
   };
   const created = await channelStore.addChannel(payload);

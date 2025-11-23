@@ -10,6 +10,8 @@ import AuthMiddleware from '#middleware/auth_middleware'
 let io: Server
 const authMiddleware = new AuthMiddleware()
 
+import { DateTime } from 'luxon'
+
 // Initialize Socket.IO when the app is ready
 app.ready(() => {
   io = new Server(server.getNodeServer(), {
@@ -99,6 +101,11 @@ function registerChannelNamespace() {
             authorId: user.id,
             body,
           })
+          
+          // Update channel last activity
+          channel.lastActivity = DateTime.now()
+          await channel.save()
+
           await created.load('author')
           const payload = serializeMessage(created, created.author)
           // broadcast to everyone in the 'active' room (online/dnd users)
