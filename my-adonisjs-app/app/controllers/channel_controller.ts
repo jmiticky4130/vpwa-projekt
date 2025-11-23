@@ -4,6 +4,7 @@ import Membership from '#models/membership'
 import KickLog from '#models/kick_log'
 import { DateTime } from 'luxon'
 import { createChannelValidator, channelNameValidator } from '../validators/channel.js'
+import { io } from '../../start/ws.js'
 
 export default class ChannelController {
   /**
@@ -36,6 +37,7 @@ export default class ChannelController {
           .first()
         if (!membership) {
           await user.related('channels').attach([existing.id])
+          io.of(`/channels/${existing.name}`).emit('channel:members_updated')
         }
         return existing
       }
@@ -144,6 +146,7 @@ export default class ChannelController {
     }
 
     await user.related('channels').attach([channel.id])
+    io.of(`/channels/${channel.name}`).emit('channel:members_updated')
     return { success: true }
   }
 
@@ -167,6 +170,7 @@ export default class ChannelController {
 
     // Otherwise just remove membership
     await user.related('channels').detach([channel.id])
+    io.of(`/channels/${channel.name}`).emit('channel:members_updated')
     return { success: true, left: true }
   }
 
@@ -238,6 +242,8 @@ export default class ChannelController {
     }
 
     await target.related('channels').detach([channel.id])
+    io.of(`/channels/${channel.name}`).emit('channel:members_updated')
+    io.of(`/channels/${channel.name}`).emit('channel:revoked', { userId: target.id })
     return { success: true }
   }
 
@@ -322,6 +328,8 @@ export default class ChannelController {
 
     // Immediate kick
     await target.related('channels').detach([channel.id])
+    io.of(`/channels/${channel.name}`).emit('channel:members_updated')
+    io.of(`/channels/${channel.name}`).emit('channel:kicked', { userId: target.id })
     return { success: true, kicked: true, message: `User kicked` }
   }
 }

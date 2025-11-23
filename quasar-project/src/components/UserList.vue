@@ -6,12 +6,13 @@
           <q-badge
             color="blue-grey-10"
             class="flex items-center justify-center"
-            text-color="primary"
-            >{{ currentUser.email }}</q-badge
+            text-color="grey-5"
+            style="font-size: 18px;"
+            >Logged in as: {{ currentUser.nickname }}</q-badge
           >
         </q-item-section>
         <q-item-section side>
-          <q-btn dense flat icon="logout" @click="onLogout" />
+          <q-btn dense flat color="red-5" icon="logout" @click="onLogout" />
         </q-item-section>
       </q-item>
       <q-item-label header>Members ({{ users.length }})</q-item-label>

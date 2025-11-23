@@ -10,6 +10,7 @@ export const useChannelStore = defineStore('channels', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const newlyAccepted = ref<Set<string>>(new Set())
+  const membersVersion = ref<Record<string, number>>({})
 
   const setError = (e: unknown) => {
     if (e instanceof Error) error.value = e.message
@@ -26,6 +27,21 @@ export const useChannelStore = defineStore('channels', () => {
 
   function isNew(channelName: string) {
     return newlyAccepted.value.has(channelName.toLowerCase())
+  }
+
+  function incrementMembersVersion(channelName: string) {
+    const key = channelName.toLowerCase()
+    membersVersion.value[key] = (membersVersion.value[key] || 0) + 1
+  }
+
+  function removeChannelLocal(channelName: string) {
+    const idx = channels.value.findIndex(c => c.name.toLowerCase() === channelName.toLowerCase())
+    if (idx !== -1) {
+      channels.value.splice(idx, 1)
+    }
+    // Also disconnect socket
+    const ms = useMessageStore()
+    ms.leave(channelName)
   }
 
   async function refresh(): Promise<void> {
@@ -159,52 +175,6 @@ export const useChannelStore = defineStore('channels', () => {
     }
   }
 
-  // Not implemented in backend yet - legacy code
-  function isBanned(name: string, userId: number): boolean {
-    const ch = findByName(name);
-    if (!ch) return false;
-    const banned = Array.isArray(ch.banned) ? ch.banned : [];
-    return banned.includes(userId);
-  }
-
-  // Not implemented in backend yet - legacy code
-  function banUser(name: string, targetUserId: number) {
-    const ch = findByName(name);
-    if (!ch) return;
-    const idx = ch.members.indexOf(targetUserId);
-    if (idx >= 0) ch.members.splice(idx, 1);
-    ch.banned = Array.isArray(ch.banned) ? ch.banned : []
-    if (!ch.banned.includes(targetUserId)) ch.banned.push(targetUserId);
-    ch.kickVotes = ch.kickVotes ?? {}
-    delete ch.kickVotes[String(targetUserId)];
-  }
-
-  // Not implemented in backend yet - legacy code
-  function clearBan(name: string, targetUserId: number) {
-    const ch = findByName(name);
-    if (!ch) return;
-    ch.banned = (Array.isArray(ch.banned) ? ch.banned : []).filter((id) => id !== targetUserId);
-    if (ch.kickVotes) delete ch.kickVotes[String(targetUserId)];
-  }
-  
-  // Not implemented in backend yet - legacy code
-  function addKickVote(name: string, voterUserId: number, targetUserId: number): { added: boolean; count: number; thresholdReached: boolean } {
-    const ch = findByName(name);
-    const thresholdKick = 2;
-    if (!ch) return { added: false, count: 0, thresholdReached: false };
-    const key = String(targetUserId);
-    ch.kickVotes = ch.kickVotes ?? {}
-    const arr = Array.isArray(ch.kickVotes[key]) ? ch.kickVotes[key] : [];
-    const set = new Set(arr);
-    const before = set.size;
-    set.add(voterUserId);
-    const after = set.size;
-    ch.kickVotes[key] = Array.from(set);
-    const count = ch.kickVotes[key].length;
-    const thresholdReached = count >= thresholdKick;
-    return { added: after > before, count, thresholdReached };
-  }
-
   return {
   channels,
   loading,
@@ -219,12 +189,11 @@ export const useChannelStore = defineStore('channels', () => {
     revokeMember,
     kickMember,
     removeChannel,
-    isBanned,
-    banUser,
-    clearBan,
-    addKickVote,
     markAsNew,
     unmarkAsNew,
-    isNew
+    isNew,
+    membersVersion,
+    incrementMembersVersion,
+    removeChannelLocal
   };
 });

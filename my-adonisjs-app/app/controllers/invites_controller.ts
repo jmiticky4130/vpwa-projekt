@@ -153,6 +153,7 @@ export default class InvitesController {
 
     // Accept: add membership even if private
     await user.related('channels').attach([channel.id])
+    io.of(`/channels/${channel.name}`).emit('channel:members_updated')
     invite.status = 'accepted'
     await invite.save()
     return { success: true, status: 'accepted', channel: { id: channel.id, name: channel.name } }

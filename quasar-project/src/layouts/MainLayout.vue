@@ -11,7 +11,7 @@
       >
         <q-tab name="channels" label="Channels" />
         <q-tab name="chat" label="Chat" />
-        <q-tab name="members" label="Members" />
+        <q-tab name="members" label="Members / Invites" />
       </q-tabs>
       <q-toolbar v-else>
         <q-toolbar-title class="app-title text-weight-medium cursor-pointer" @click="goHome">
@@ -19,7 +19,7 @@
           <span>ChatApp</span>
         </q-toolbar-title>
         <div v-if="currentUser" class="row items-center q-gutter-sm">
-          <q-badge color="white" text-color="primary">{{ currentUser.email }}</q-badge>
+          <q-badge color="white" style="font-size: 16px;" text-color="primary"> Logged in as: {{ currentUser.nickname }}</q-badge>
           <q-btn dense flat icon="logout" @click="logout" />
         </div>
         <div v-else class="row items-center q-gutter-sm">
@@ -43,8 +43,37 @@
             <router-view />
           </div>
 
-          <div v-else-if="mobileTab === 'members'" style="flex: 1">
-            <UserList :users="channelUsersWithStatus" :current-user-email="currentUserEmail" />
+          <div v-else-if="mobileTab === 'members'" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+            <div class="row q-pa-sm q-gutter-sm flex-shrink-0">
+              <div class="row q-gutter-xs full-width justify-center">
+                <q-btn
+                  :color="panelMode === 'users' ? 'primary' : 'grey-8'"
+                  label="Users"
+                  dense
+                  no-caps
+                  class="col"
+                  @click="panelMode = 'users'"
+                />
+                <q-btn
+                  :color="panelMode === 'invites' ? 'primary' : 'grey-8'"
+                  label="Invites"
+                  dense
+                  no-caps
+                  class="col"
+                  @click="panelMode = 'invites'"
+                >
+                  <q-badge color="red" floating v-if="inviteCount > 0">{{ inviteCount }}</q-badge>
+                </q-btn>
+              </div>
+            </div>
+            <div style="flex: 1; overflow-y: auto; min-height: 0;">
+              <UserList 
+                v-if="panelMode === 'users'" 
+                :users="channelUsersWithStatus" 
+                :current-user-email="currentUserEmail" 
+              />
+              <InviteList v-else />
+            </div>
           </div>
         </template>
 
@@ -63,13 +92,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import ChannelNavigation from 'src/components/ChannelNavigation.vue';
 import UserStatusBar from 'src/components/UserStatusBar.vue';
 import UserList from 'src/components/UserList.vue';
+import InviteList from 'src/components/InviteList.vue';
 import { useAuthStore } from 'src/stores/auth-store';
 import { useChannelStore } from 'src/stores/channel-store';
+import { useInviteStore } from 'src/stores/invite-store';
 import { storeToRefs } from 'pinia';
 import type { User } from 'src/contracts';
 import usersService from 'src/services/UsersService';
@@ -79,18 +110,31 @@ const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
 const channelStore = useChannelStore();
+const inviteStore = useInviteStore();
 const { user: currentUser } = storeToRefs(auth);
 const mobileTab = ref<'channels' | 'chat' | 'members'>('chat');
 const presence = usePresenceStore();
 
+const panelMode = ref<'users' | 'invites'>('users');
+const inviteCount = computed(() => inviteStore.invites.length);
+
+onMounted(() => {
+  if (currentUser.value) {
+    void inviteStore.refresh();
+  }
+});
+
 // Refresh member list when mobile Members tab becomes active
 watch(mobileTab, async (tab) => {
-  if (tab === 'members' && currentChannel.value?.id) {
-    try {
-      channelUsers.value = await usersService.getByChannel(currentChannel.value.id)
-    } catch (e) {
-      console.warn('Failed to refresh members on tab change', e)
+  if (tab === 'members') {
+    if (currentChannel.value?.id) {
+      try {
+        channelUsers.value = await usersService.getByChannel(currentChannel.value.id)
+      } catch (e) {
+        console.warn('Failed to refresh members on tab change', e)
+      }
     }
+    void inviteStore.refresh();
   }
 })
 

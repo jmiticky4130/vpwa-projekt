@@ -15,7 +15,7 @@
           You are viewing <strong>{{ channel.name }}</strong>
         </div>
         <div class="messages-wrapper">
-          <ChannelMessageList :channelKey="channel.name.toLowerCase()" />
+          <ChannelMessageList :channelKey="channel.name.toLowerCase()" ref="messageListRef" />
         </div>
       </div>
       <div class="user-list-panel">
@@ -53,6 +53,7 @@
         @submit="handleSubmit"
         @system="handleSystem"
         @membersChanged="refreshChannelUsers"
+        @listMembers="handleListMembers"
       />
     </div>
   </q-page>
@@ -60,7 +61,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import ChannelTextField from 'src/components/ChannelTextField.vue';
 import UserList from 'src/components/UserList.vue';
 import InviteList from 'src/components/InviteList.vue';
@@ -76,6 +77,7 @@ import ChannelMessageList from 'src/components/ChannelMessageList.vue';
 import { usePresenceStore } from 'src/stores/presence-store';
 
 const route = useRoute();
+const router = useRouter();
 const channelStore = useChannelStore();
 const messageStore = useMessageStore();
 const inviteStore = useInviteStore();
@@ -84,6 +86,16 @@ const channel = computed<Channel | undefined>(() => {
   const slug = String(route.params.slug || '').toLowerCase();
   return channelStore.channels.find((c) => c.name.toLowerCase() === slug);
 });
+
+// Redirect if channel is removed (e.g. kicked/revoked)
+watch(
+  () => channel.value,
+  (val) => {
+    if (!val && route.name === 'channel') {
+      void router.push('/');
+    }
+  }
+);
 
 
 const auth = useAuthStore();
@@ -134,6 +146,20 @@ watch(
     await refreshChannelUsers()
   },
   { immediate: true }
+)
+
+watch(
+  () => {
+    const name = channel.value?.name
+    if (!name) return 0
+    return channelStore.membersVersion[name.toLowerCase()] || 0
+  },
+  async (newVersion, oldVersion) => {
+    if (newVersion !== oldVersion) {
+      console.log(`[ChannelPage] Members version changed to ${newVersion}, refreshing...`)
+      await refreshChannelUsers()
+    }
+  }
 )
 
 
@@ -197,7 +223,23 @@ async function handleSubmit(value: string) {
   }
 }
 
-function handleSystem() { /* no-op while message list disabled */ }
+const messageListRef = ref<InstanceType<typeof ChannelMessageList> | null>(null);
+
+function handleSystem(text: string) {
+  console.log('Received system message in ChannelPage:', text);
+  if (messageListRef.value) {
+    console.log('Adding system message to list');
+    messageListRef.value.addSystemMessage(text);
+  } else {
+    console.warn('messageListRef is null');
+  }
+}
+
+function handleListMembers() {
+  if (!channel.value) return;
+  const userList = channelUsers.value.map((u) => u.nickname).join(', ');
+  handleSystem(`Members in #${channel.value.name}: ${userList}`);
+}
 </script>
 
 <style scoped>
