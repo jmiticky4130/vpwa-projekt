@@ -143,6 +143,8 @@ watch(
   async (id) => {
     channelUsers.value = []
     if (!id) return
+    // Reset panel mode to users when switching channels
+    panelMode.value = 'users'
     await refreshChannelUsers()
   },
   { immediate: true }

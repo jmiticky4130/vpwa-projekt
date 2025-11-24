@@ -1,7 +1,8 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { registerUserValidator } from '#validators/register_user'
 import User from '#models/user'
-import Channel from '#models/channel'
+import db from '@adonisjs/lucid/services/db'
+import { io } from '../../start/ws.js'
 
 export default class AuthController {
   async register({ request }: HttpContext) {
@@ -17,9 +18,7 @@ export default class AuthController {
     })
 
     console.log('User created:', user)
-    // Add user to general channel
-    const general = await Channel.findByOrFail('name', 'general')
-    await user.related('channels').attach([general.id])
+    
     return {
       id: user.id,
       nickname: user.nickname,
@@ -38,6 +37,15 @@ export default class AuthController {
     console.log('Attempting login for email:', email)
     const user = await User.verifyCredentials(email, password)
     console.log('User authenticated:', user)
+
+    // Invalidate all previous tokens to ensure single session
+    await db.from('auth_access_tokens').where('tokenable_id', user.id).delete()
+
+    // Force logout other sessions via socket
+    if (io) {
+      io.of(`/users/${user.id}`).emit('force_logout')
+    }
+
     const token = await auth.use('api').createToken(user, [], {
       name: 'api-token',
       expiresIn: '7 days',

@@ -252,6 +252,18 @@ export function useNotify() {
     Notify.create({ type: 'info', message: msg });
   }
 
+  function notifyChannelAlreadyExists(name: string) {
+    Notify.create({ type: 'negative', message: `Channel #${name} already exists.` });
+  }
+
+  function notifyChannelNotFound(name: string) {
+    Notify.create({ type: 'warning', message: `Channel #${name} not found. Use /join #${name} private or public to create it.` });
+  }
+
+  function notifyForceLogout() {
+    Notify.create({ type: 'negative', message: 'You have been logged out because you signed in from another location.' });
+  }
+
   return {
     notifyJoinedChannel,
     notifyAlreadyMember,
@@ -282,5 +294,8 @@ export function useNotify() {
     notifyNotInChannel,
     notifyMessage,
     notifyKickMessage,
+    notifyChannelAlreadyExists,
+    notifyChannelNotFound,
+    notifyForceLogout,
   };
 }

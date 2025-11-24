@@ -1,5 +1,5 @@
 import type { RawMessage, SerializedMessage } from "src/contracts";
-import type { BootParams } from "./SocketManager";
+//import type { BootParams } from "./SocketManager";
 import { SocketManager } from "./SocketManager";
 import { useMessageStore } from "src/stores/message-store";
 import { api } from "src/boot/axios";
@@ -9,9 +9,6 @@ import { useInviteStore } from "src/stores/invite-store";
 import { useChannelStore } from "src/stores/channel-store";
 import { useNotify } from "src/util/notification";
 
-// creating instance of this class automatically connects to given socket.io namespace
-// subscribe is called with boot params, so you can use it to dispatch actions for socket events
-// you have access to socket.io socket using this.socket
 class UserSocketManager extends SocketManager {
   public subscribe(): void {
     const inviteStore = useInviteStore();
@@ -20,21 +17,37 @@ class UserSocketManager extends SocketManager {
       console.log(`[user-socket] Received new invite notification`)
       void inviteStore.refresh()
     });
+
+    this.socket.on("force_logout", async () => {
+      console.log("[user-socket] Received force_logout");
+      const authStore = useAuthStore();
+      const { useNotify } = await import('src/util/notification');
+      const { authManager } = await import('src/services');
+
+      authManager.removeToken();
+      authStore.user = null;
+      
+      const { useMessageStore } = await import('src/stores/message-store');
+      useMessageStore().reset();
+
+      const { default: ChannelServiceInstance } = await import('src/services/ChannelService');
+      ChannelServiceInstance.disconnectUserSocket();
+      ChannelServiceInstance.leaveAll();
+      
+      useNotify().notifyForceLogout();
+      window.location.href = '/#/login';
+      window.location.reload();
+    });
   }
 }
 
 class ChannelSocketManager extends SocketManager {
-  public subscribe(params: BootParams): void {
+  public subscribe(/*params: BootParams*/): void {
     const channel = this.namespace.split("/").pop() as string;
     const messageStore = useMessageStore();
     const presence = usePresenceStore();
     const channelStore = useChannelStore();
-    // const inviteStore = useInviteStore();
-    // Reference params to satisfy lint rules (kept for API compatibility)
-    if (params && params.app) {
-      // no-op
-    }
-    // Auto-emit online when socket connects (if not in offline mode)
+
     this.socket.on("connect", () => {
       const auth = useAuthStore();
       const current = auth.user?.status ?? 'online'
@@ -44,14 +57,12 @@ class ChannelSocketManager extends SocketManager {
       }
     });
 
-    // De-duplicate handlers in case of HMR or accidental multiple subscribe calls
     this.socket.off('message');
     this.socket.off('myStatus');
     this.socket.off('allStatuses');
     this.socket.off('channel:members_updated');
     this.socket.off('channel:kicked');
     this.socket.off('channel:revoked');
-    //this.socket.off('invite:new');
 
     this.socket.on("message", async (message: SerializedMessage) => {
       await messageStore.addIncomingMessage(channel, message);
@@ -78,6 +89,12 @@ class ChannelSocketManager extends SocketManager {
         channelStore.removeChannelLocal(channel);
         useNotify().notifyRevokedAccess(channel);
       }
+    });
+
+    this.socket.on("channel:deleted", () => {
+      console.log(`[channel-socket] Channel ${channel} was deleted`);
+      channelStore.removeChannelLocal(channel);
+      useNotify().notifyChannelDeleted(channel);
     });
 
     this.socket.on("allStatuses", (statuses: Array<{ userId: number; status: 'online'|'dnd'|'offline' }>) => {
@@ -150,8 +167,23 @@ class ChannelService {
   }
 
   public connectUserSocket(userId: number): void {
-    new UserSocketManager(`/users/${userId}`);
+    // Check if already connected to avoid duplicates
+    const ns = `/users/${userId}`;
+    if (this.userSocket) {
+      this.userSocket.destroy();
+      this.userSocket = null;
+    }
+    this.userSocket = new UserSocketManager(ns);
   }
+
+  public disconnectUserSocket(): void {
+    if (this.userSocket) {
+      this.userSocket.destroy();
+      this.userSocket = null;
+    }
+  }
+
+  private userSocket: UserSocketManager | null = null;
 }
 
 export default new ChannelService();

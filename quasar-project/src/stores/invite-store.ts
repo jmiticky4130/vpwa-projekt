@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import invitesService from 'src/services/InvitesService';
 import type { InviteItem } from 'src/contracts';
-//import channelService from 'src/services/ChannelsService';
+import ChannelService from 'src/services/ChannelService';
 import { useChannelStore } from './channel-store';
 
 export const useInviteStore = defineStore('invites', () => {
@@ -47,6 +47,12 @@ export const useInviteStore = defineStore('invites', () => {
         channelStore.markAsNew(resp.channel.name);
         // Ensure channels list updates so UI shows membership
         await channelStore.refresh(); 
+        
+        // Join the socket immediately so we appear online to other members
+        const channelName = resp.channel.name.toLowerCase();
+        if (!ChannelService.in(channelName)) {
+          ChannelService.join(channelName);
+        }
       }
       invites.value = invites.value.filter((i) => i.id !== inviteId);
       return true;

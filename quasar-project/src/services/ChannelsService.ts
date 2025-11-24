@@ -43,6 +43,16 @@ class ChannelsService {
   async setPrivacy(payload: { name: string; public: boolean }): Promise<void> {
     await api.patch('channel/privacy', payload)
   }
+
+  async checkExists(name: string): Promise<boolean> {
+    try {
+      const resp = await api.get<{ exists: boolean }>('channel/exists', { params: { name } })
+      return resp.data.exists
+    } catch (e) {
+      console.error('Failed to check channel existence', e)
+      return false
+    }
+  }
 }
 
 export default new ChannelsService()

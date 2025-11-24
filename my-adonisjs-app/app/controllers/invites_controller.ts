@@ -93,8 +93,6 @@ export default class InvitesController {
       }
     }
 
-    // Existing pending invite? User reported needing to "delete the invite through the mail" so we
-    // will replace any pending invite (email or nickname initiated) with a fresh one, instead of returning conflict.
     const existingInvite = await Invite.query()
       .where('channel_id', channel.id)
       .andWhere('to_user_id', target.id)
