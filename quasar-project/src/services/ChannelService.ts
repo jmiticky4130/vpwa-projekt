@@ -94,7 +94,7 @@ class ChannelSocketManager extends SocketManager {
     this.socket.on("channel:deleted", () => {
       console.log(`[channel-socket] Channel ${channel} was deleted`);
       channelStore.removeChannelLocal(channel);
-      useNotify().notifyChannelDeleted(channel);
+      useNotify().notifyChannelDeleted(channel, false);
     });
 
     this.socket.on("allStatuses", (statuses: Array<{ userId: number; status: 'online'|'dnd'|'offline' }>) => {

@@ -9,7 +9,7 @@
           <q-badge v-if="channelCreatorLabel" color="indigo-6" class="text-white">
             Creator: {{ channelCreatorLabel }}
           </q-badge>
-          <h4 class="q-ma-none text-white ellipsis">{{ channel.name }}</h4>
+          <h4 class="q-ma-none text-white ellipsis"># {{ channel.name }}</h4>
         </header>
         <div class="channel-sub text-grey-5" v-if="channel">
           You are viewing <strong>{{ channel.name }}</strong>
@@ -104,9 +104,9 @@ const currentUserEmail = computed(() => currentUser.value?.email ?? '');
 
 const channelCreatorLabel = computed(() => {
   const ch = channel.value;
-  if (!ch || ch.creatorId == null) return '';
+  if (!ch || ch.creatorId == null) return "Loading...";
   const creator = channelUsers.value.find((u) => u.id === ch.creatorId);
-  return creator ? creator.nickname : String(ch.creatorId);
+  return creator ? creator.nickname : "Loading...";
 });
 
 const channelUsers = ref<User[]>([]);
@@ -206,7 +206,10 @@ watch(
         const key = name.toLowerCase()
         try {
           await messageStore.join(key)
+          
           await refreshChannelUsers()
+          // Scroll to bottom after fetch
+          messageListRef.value?.scrollToBottom()
         } catch (e) {
           console.warn('Failed to refresh channel on online status', e)
         }

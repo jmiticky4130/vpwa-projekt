@@ -34,14 +34,17 @@ export const useChannelStore = defineStore('channels', () => {
     membersVersion.value[key] = (membersVersion.value[key] || 0) + 1
   }
 
-  function removeChannelLocal(channelName: string) {
+  function removeChannelLocal(channelName: string): boolean {
     const idx = channels.value.findIndex(c => c.name.toLowerCase() === channelName.toLowerCase())
+    let removed = false
     if (idx !== -1) {
       channels.value.splice(idx, 1)
+      removed = true
     }
     // Also disconnect socket
     const ms = useMessageStore()
     ms.leave(channelName)
+    return removed
   }
 
   async function refresh(): Promise<void> {
@@ -101,7 +104,7 @@ export const useChannelStore = defineStore('channels', () => {
       return ch
     } catch (e) {
       setError(e)
-      return null
+      throw e
     }
   }
 
@@ -112,7 +115,7 @@ export const useChannelStore = defineStore('channels', () => {
       return true
     } catch (e) {
       setError(e)
-      return false
+      throw e
     }
   }
 
@@ -125,6 +128,7 @@ export const useChannelStore = defineStore('channels', () => {
       await refresh()
     } catch (e) {
       setError(e)
+      throw e
     }
   }
 
@@ -135,7 +139,7 @@ export const useChannelStore = defineStore('channels', () => {
       return true
     } catch (e) {
       setError(e)
-      return false
+      throw e
     }
   }
 
@@ -145,6 +149,7 @@ export const useChannelStore = defineStore('channels', () => {
       await refresh()
     } catch (e) {
       setError(e)
+      throw e
     }
   }
 
@@ -161,6 +166,7 @@ export const useChannelStore = defineStore('channels', () => {
       await refresh()
     } catch (e) {
       setError(e)
+      throw e
     }
   }
 
@@ -171,7 +177,7 @@ export const useChannelStore = defineStore('channels', () => {
       return result
     } catch (e) {
       setError(e)
-      return null
+      throw e
     }
   }
 
@@ -179,11 +185,19 @@ export const useChannelStore = defineStore('channels', () => {
     return await channelService.checkExists(name)
   }
 
+  function reset() {
+    channels.value = []
+    loading.value = false
+    error.value = null
+    newlyAccepted.value = new Set()
+    membersVersion.value = {}
+  }
+
   return {
-  channels,
-  loading,
-  error,
-  refresh,
+    channels,
+    loading,
+    error,
+    refresh,
     list,
     findByName,
     addChannel,
@@ -199,6 +213,7 @@ export const useChannelStore = defineStore('channels', () => {
     membersVersion,
     incrementMembersVersion,
     removeChannelLocal,
-    checkChannelExists
+    checkChannelExists,
+    reset,
   };
 });
