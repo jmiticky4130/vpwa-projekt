@@ -9,7 +9,7 @@
       :offset="100"
       reverse
       :scroll-target="listEl"
-      :key="props.channelKey"
+      :key="`${props.channelKey}-${reconnectKey}`"
     >
       <template v-slot:loading>
         <div class="row justify-center q-my-md">
@@ -67,6 +67,17 @@ type Message = {
 const props = defineProps<{ channelKey: string }>();
 // Pinia message store
 const messageStore = useMessageStore();
+const authStore = useAuthStore();
+const reconnectKey = ref(0);
+
+watch(
+  () => authStore.user?.status,
+  (newStatus, oldStatus) => {
+    if (newStatus === 'online' && oldStatus === 'offline') {
+      reconnectKey.value++;
+    }
+  }
+);
 
 const isChannelLoaded = computed(() => {
   return messageStore.totals[props.channelKey] !== undefined;
@@ -101,17 +112,17 @@ function addSystemMessage(text: string) {
 }
 
 const displayedMessages = computed<Message[]>(() => {
-  const persisted = (messageStore.messages[props.channelKey] || []).map(toViewMessage)
-  const queuedRaw = messageStore.offlineQueues[props.channelKey] || []
+  const persisted = (messageStore.messages[props.channelKey] || []).map(toViewMessage);
+  const queuedRaw = messageStore.offlineQueues[props.channelKey] || [];
   const queued = queuedRaw.map((raw, idx) => ({
     id: `queued-${idx}-${props.channelKey}`,
     text: raw,
     name: currentUserDisplay.value || 'You',
     stamp: new Date().toLocaleTimeString(),
     state: 'sending' as const,
-    createdAt: Date.now()
-  }))
-  
+    createdAt: Date.now(),
+  }));
+
   const system = systemMessages.value.map((sys) => ({
     id: sys.id,
     text: sys.text,
@@ -133,8 +144,6 @@ async function loadMoreMessages(_index: number, done: (stop?: boolean) => void) 
   done(!hasMore);
 }
 
-// Persistence disabled - removed function
-
 function scrollToBottom() {
   void nextTick(() => {
     const el = listEl.value;
@@ -152,7 +161,6 @@ function isNearBottom(): boolean {
 }
 
 async function appendMessage(text: string) {
-  
   try {
     await messageStore.addMessage({ channel: props.channelKey, message: text });
     // The incoming echo (via websocket 'message') updates the store and UI
@@ -175,17 +183,19 @@ function isOwn(m: Message) {
 function isDirectedToCurrentUser(m: Message) {
   const me = currentUserDisplay.value;
   if (m.text && me) {
-    const mention = `@${me}`;
-    return m.text.includes(mention);
+    const escapedMe = me.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`@${escapedMe}\\b`);
+    return regex.test(m.text);
   }
   return false;
 }
 
-defineExpose({ appendMessage, addSystemMessage });
+defineExpose({ appendMessage, addSystemMessage, scrollToBottom });
 
 onMounted(() => {
   scrollToBottom();
 });
+
 
 watch(
   () => props.channelKey,
@@ -202,7 +212,7 @@ watch(
     if (newLength > oldLength && isNearBottom()) {
       scrollToBottom();
     }
-  }
+  },
 );
 
 watch(isChannelLoaded, (val) => {

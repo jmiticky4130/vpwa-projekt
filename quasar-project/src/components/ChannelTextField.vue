@@ -1,5 +1,6 @@
 <template>
   <div class="channel-text-field">
+    <q-linear-progress v-if="loading" indeterminate class="absolute-top" color="primary" size="2px" />
     <q-input
       v-model="message"
       :placeholder="placeholder"
@@ -24,6 +25,7 @@ import { storeToRefs } from 'pinia';
 const props = defineProps<{ channelName?: string }>();
 const emit = defineEmits<{ submit: [value: string]; system: [value: string]; membersChanged: []; listMembers: [] }>();
 const message = ref('');
+const loading = ref(false);
 const placeholder = computed(() =>
   props.channelName ? `Message #${props.channelName}` : 'Type /join #channel to start or join one',
 );
@@ -33,8 +35,6 @@ const { user: currentUser } = storeToRefs(useAuthStore());
 const {
   notifyJoinedChannel,
   notifyAlreadyMember,
-  notifyPrivateChannelBlocked,
-  //notifyBannedCannotJoin,
   notifyChannelCreated,
   notifyCreatorOnlyPrivacy,
   notifyChannelAlreadyState,
@@ -44,26 +44,10 @@ const {
   notifyLeftChannel,
   notifyRevokeSuccess,
   notifyRevokeNotCreator,
-  //notifyKickSuccess,
-  //notifyKickNotCreator,
   notifyKickNotAllowedPrivate,
   notifyChannelAlreadyExists,
-  //notifyChannelNotFound,
-  // notifyRevokeNotCreator, (unused after removing revoke command handling)
-  /*notifyChannelDeleted,
-  notifyLeftChannel,
-  notifyInviteSuccess,
-  notifyRevokeSuccess,
-  notifyUserNotFound,
-  notifyAlreadyInChannel,
-  notifyNotInChannel,
-  notifyKickNotAllowedPrivate,
-  notifyKickCannotKickCreator,
-  notifyKickCannotKickSelf,
-  notifyKickVoteAdded,
-  notifyKickVoteDuplicate,
-  notifyKickedByAdmin,
-  notifyInviteBlockedBanned,*/
+  notifyError,
+  notifyCommandRequiresChannel,
 } = useNotify();
 
 type Command = {
@@ -118,7 +102,15 @@ async function handleCommand(cmd: Command) {
     const mode = cmd.args[1]?.toLowerCase(); // 'public' | 'private' | undefined
 
     if (!targetNameRaw) return;
-    const targetName = targetNameRaw.replace(/^#/, '');
+    const targetName = targetNameRaw.replace(/^#/, '').toLowerCase();
+
+    // Check local store first
+    const localCh = channelStore.findByName(targetName);
+    if (localCh) {
+      await router.push({ name: 'channel', params: { slug: localCh.name } });
+      notifyAlreadyMember(localCh.name);
+      return;
+    }
 
     // Check if channel exists on backend (covers channels user is not a member of)
     const exists = await channelStore.checkChannelExists(targetName);
@@ -130,25 +122,11 @@ async function handleCommand(cmd: Command) {
         return;
       }
 
-      // Otherwise, try to join existing channel
-      const ch = channelStore.findByName(targetName);
-      // If found in local store (user is member), navigate
-      if (ch) {
-        const uid = currentUser.value?.id;
-        const isMember = uid != null && Array.isArray(ch.members) && ch.members.includes(uid);
-        if (isMember) {
-          await router.push({ name: 'channel', params: { slug: ch.name } });
-          notifyAlreadyMember(ch.name);
-          return;
-        }
-      }
       if (currentUser.value?.id != null) {
         const success = await channelStore.addMember(targetName);
         if (success) {
           await router.push({ name: 'channel', params: { slug: targetName } });
           notifyJoinedChannel(targetName);
-        } else {
-          notifyPrivateChannelBlocked(targetName);
         }
       }
       return;
@@ -160,13 +138,21 @@ async function handleCommand(cmd: Command) {
     };
     const created = await channelStore.addChannel(payload);
     if (!created) return;
+    
+    const wasJoined = (created as { wasJoined?: boolean }).wasJoined;
+
     const uid = currentUser.value?.id;
     if (uid != null) {
       // Backend already attaches creator, but for safety refresh membership
       await channelStore.addMember(created.name);
     }
     await router.push({ name: 'channel', params: { slug: created.name } });
-    notifyChannelCreated(created.name, isPublic ? 'public' : 'private');
+    
+    if (wasJoined) {
+      notifyJoinedChannel(created.name);
+    } else {
+      notifyChannelCreated(created.name, isPublic ? 'public' : 'private');
+    }
     return;
   }
 
@@ -191,7 +177,10 @@ async function handleCommand(cmd: Command) {
 
   if (cmd.name === 'invite') {
     const currentName = props.channelName || '';
-    if (!currentName) return;
+    if (!currentName) {
+      notifyCommandRequiresChannel('invite');
+      return;
+    }
     const ch = channelStore.findByName(currentName);
     if (!ch) return;
     const isCreator = currentUser.value?.id === ch.creatorId;
@@ -217,7 +206,10 @@ async function handleCommand(cmd: Command) {
 
   if (cmd.name === 'revoke') {
     const currentName = props.channelName || '';
-    if (!currentName) return;
+    if (!currentName) {
+      notifyCommandRequiresChannel('revoke');
+      return;
+    }
     const ch = channelStore.findByName(currentName);
     if (!ch) return;
     const isCreator = currentUser.value?.id === ch.creatorId;
@@ -228,6 +220,12 @@ async function handleCommand(cmd: Command) {
     const identifierRaw = cmd.args.join(' ').trim();
     if (!identifierRaw) return;
     const nickname = identifierRaw.replace(/^@/, '');
+
+    if (currentUser.value?.nickname?.toLowerCase() === nickname.toLowerCase()) {
+      notifyError('You cannot revoke yourself. Use /cancel to delete the channel.');
+      return;
+    }
+
     const ok = await channelStore.revokeMember(ch.name.toLowerCase(), nickname);
     if (ok) {
       notifyRevokeSuccess(nickname, ch.name);
@@ -238,7 +236,10 @@ async function handleCommand(cmd: Command) {
 
   if (cmd.name === 'kick') {
     const currentName = props.channelName || '';
-    if (!currentName) return;
+    if (!currentName) {
+      notifyCommandRequiresChannel('kick');
+      return;
+    }
     const ch = channelStore.findByName(currentName);
     if (!ch) return;
     // Permission check handled by backend, but we can do a quick check for private channels
@@ -250,6 +251,12 @@ async function handleCommand(cmd: Command) {
     const identifierRaw = cmd.args.join(' ').trim();
     if (!identifierRaw) return;
     const nickname = identifierRaw.replace(/^@/, '');
+
+    if (currentUser.value?.nickname?.toLowerCase() === nickname.toLowerCase()) {
+      notifyError('You cannot kick yourself. Use /cancel to delete the channel.');
+      return;
+    }
+
     const result = await channelStore.kickMember(ch.name.toLowerCase(), nickname);
     if (result && result.success) {
       const { useNotify } = await import('src/util/notification');
@@ -268,20 +275,25 @@ async function handleCommand(cmd: Command) {
 
   if (cmd.name === 'quit' || cmd.name === 'cancel') {
     const currentName = props.channelName || '';
-    if (!currentName) return;
-    const ch = channelStore.findByName(currentName);
-    const isCreator = ch && currentUser.value?.id != null && ch.creatorId === currentUser.value.id;
-    try {
-      await channelStore.removeMember(currentName);
-      if (isCreator) {
-        notifyChannelDeleted(currentName);
-      } else {
-        notifyLeftChannel(currentName);
-      }
-      await router.push({ path: '/' });
-    } catch {
-      // optional: show error notify
+    if (!currentName) {
+      notifyCommandRequiresChannel(cmd.name);
+      return;
     }
+    const ch = channelStore.findByName(currentName);
+    const uid = currentUser.value?.id ?? null;
+    const isCreator = ch && uid != null && ch.creatorId === uid;
+    
+    if (isCreator) {
+      // Creator deletes the channel
+      await channelStore.removeChannel(currentName, uid);
+      notifyChannelDeleted(currentName, true);
+    } else {
+      // Non-creator just leaves
+      await channelStore.removeMember(currentName);
+      notifyLeftChannel(currentName);
+    }
+    await router.push({ path: '/' });
+    
     return;
   }
 }
@@ -289,13 +301,33 @@ async function handleCommand(cmd: Command) {
 async function submit() {
   const value = message.value.trim();
   if (!value) return;
-  const cmd = tryParseCommand(value);
-  if (cmd) {
-    await handleCommand(cmd);
-  } else {
-    emit('submit', value);
-  }
+  
   message.value = '';
+  loading.value = true;
+
+  try {
+    const cmd = tryParseCommand(value);
+    if (cmd) {
+      await handleCommand(cmd);
+    } else {
+      emit('submit', value);
+    }
+  } catch (err: unknown) {
+    const error = err as { message?: string; response?: { data?: { message?: string | string[] } } };
+    console.error('Command failed:', error);
+    let errorMsg = 'An unexpected error occurred';
+    
+    if (error.response && error.response.data && error.response.data.message) {
+      const msg = error.response.data.message;
+      errorMsg = Array.isArray(msg) ? msg.join(', ') : msg;
+    } else if (error.message) {
+      errorMsg = error.message;
+    }
+
+    notifyError(errorMsg);
+  } finally {
+    loading.value = false;
+  }
 }
 
 function onEnter() {

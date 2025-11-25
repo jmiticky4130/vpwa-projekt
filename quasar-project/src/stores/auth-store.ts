@@ -43,6 +43,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
   function AUTH_ERROR(err: unknown): void {
     status.value = 'error'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const anyErr = err as any
 
     if (Array.isArray(err)) {
       // array of { message, field? }
@@ -50,6 +52,9 @@ export const useAuthStore = defineStore('auth', () => {
         (e): e is AuthError =>
           typeof e === 'object' && e !== null && 'message' in e
       )
+    } else if (anyErr?.response?.data?.error) {
+      // Server provided error message
+      errors.value = [{ message: anyErr.response.data.error }]
     } else if (err instanceof Error) {
       errors.value = [{ message: err.message }]
     } else {
@@ -155,14 +160,24 @@ export const useAuthStore = defineStore('auth', () => {
       
       // Clean up all message store sockets
       const { useMessageStore } = await import('./message-store')
+      const { useChannelStore } = await import('./channel-store')
+      const { useInviteStore } = await import('./invite-store')
+      const { usePresenceStore } = await import('./presence-store')
+
       const ms = useMessageStore()
-      
-      console.log("[auth] Logging out, disconnecting all sockets");
+      const channelStore = useChannelStore()
+      const inviteStore = useInviteStore()
+      const presenceStore = usePresenceStore()
+
+      console.log('[auth] Logging out, disconnecting all sockets and resetting stores');
       ChannelService.leaveAll()
       ChannelService.disconnectUserSocket()
       
-      console.log("[auth] Resetting message store");
       ms.reset()
+      channelStore.reset()
+      inviteStore.reset()
+      presenceStore.reset()
+      console.log('[auth] Stores reset: messages, channels, invites, presence')
     } catch (err: unknown) {
       AUTH_ERROR(err)
       throw err

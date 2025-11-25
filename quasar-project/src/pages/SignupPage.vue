@@ -125,8 +125,8 @@ async function submit() {
   if (!emailRe.test(form.email || '')) {
     fieldErrors.value.email = 'Please enter a valid email address';
   }
-  if (!form.password || form.password.length < 6) {
-    fieldErrors.value.password = 'Password must be at least 6 characters';
+  if (!form.password || form.password.length < 8) {
+    fieldErrors.value.password = 'Password must be at least 8 characters';
   }
   const hasFieldErrors = Object.values(fieldErrors.value).some((v) => !!v);
   if (hasFieldErrors) {

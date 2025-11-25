@@ -39,8 +39,10 @@ export function useNotify() {
     if (onlyDirected) {
       const nick = user.value?.nickname?.trim();
       if (!nick) return false;
-      const mention = `@${nick}`;
-      return messageBody.includes(mention);
+      
+      const escapedNick = nick.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`@${escapedNick}\\b`);
+      return regex.test(messageBody);
     }
 
     return true;
@@ -147,8 +149,12 @@ export function useNotify() {
     });
   }
 
-  function notifyChannelDeleted(name: string) {
-    Notify.create({ type: 'info', message: `You deleted #${name}` });
+  function notifyChannelDeleted(name: string, isCreator: boolean) {
+    if(isCreator){
+      Notify.create({ type: 'info', message: `You deleted #${name}` });
+    } else {
+      Notify.create({ type: 'info', message: `The channel: #${name} was deleted` })
+    }
   }
 
   function notifyLeftChannel(name: string) {
@@ -264,6 +270,18 @@ export function useNotify() {
     Notify.create({ type: 'negative', message: 'You have been logged out because you signed in from another location.' });
   }
 
+  function notifyError(message: string) {
+    Notify.create({ type: 'negative', message });
+  }
+
+  function notifyInviteNoChannel() {
+    Notify.create({ type: 'warning', message: 'You have to be in a channel to invite users' });
+  }
+
+  function notifyCommandRequiresChannel(command: string) {
+    Notify.create({ type: 'warning', message: `You have to be in a channel to use /${command}` });
+  }
+
   return {
     notifyJoinedChannel,
     notifyAlreadyMember,
@@ -297,5 +315,8 @@ export function useNotify() {
     notifyChannelAlreadyExists,
     notifyChannelNotFound,
     notifyForceLogout,
+    notifyError,
+    notifyInviteNoChannel,
+    notifyCommandRequiresChannel,
   };
 }
