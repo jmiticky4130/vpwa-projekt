@@ -7,6 +7,7 @@ import { usePresenceStore } from "src/stores/presence-store";
 import { useAuthStore } from "src/stores/auth-store";
 import { useInviteStore } from "src/stores/invite-store";
 import { useChannelStore } from "src/stores/channel-store";
+import { useTypingStore } from "src/stores/typing-store";
 import { useNotify } from "src/util/notification";
 
 class UserSocketManager extends SocketManager {
@@ -47,6 +48,7 @@ class ChannelSocketManager extends SocketManager {
     const messageStore = useMessageStore();
     const presence = usePresenceStore();
     const channelStore = useChannelStore();
+    const typingStore = useTypingStore();
 
     this.socket.on("connect", () => {
       const auth = useAuthStore();
@@ -63,6 +65,8 @@ class ChannelSocketManager extends SocketManager {
     this.socket.off('channel:members_updated');
     this.socket.off('channel:kicked');
     this.socket.off('channel:revoked');
+    this.socket.off('user:typing:stop');
+    this.socket.off('user:typing:content');
 
     this.socket.on("message", async (message: SerializedMessage) => {
       await messageStore.addIncomingMessage(channel, message);
@@ -111,10 +115,27 @@ class ChannelSocketManager extends SocketManager {
       console.log(`[channel-socket] Received myStatus for user ${payload.userId}: ${payload.status} (ns ${this.namespace})`)
       presence.set(payload.userId, payload.status);
     });
+
+    this.socket.on("user:typing:stop", (payload: { userId: number }) => {
+      typingStore.removeTyping(channel, payload.userId);
+    });
+
+    this.socket.on("user:typing:content", (payload: { userId: number; nickname: string; content: string }) => {
+      typingStore.setTyping(channel, payload.userId, payload.nickname);
+      typingStore.setTypingContent(channel, payload.userId, payload.content);
+    });
   }
 
   public addMessage(message: RawMessage): Promise<SerializedMessage> {
     return this.emitAsync("addMessage", message);
+  }
+
+  public sendTypingStop(): void {
+    this.socket.emit("typing:stop");
+  }
+
+  public sendTypingContent(content: string): void {
+    this.socket.emit("typing:content", content);
   }
 }
 

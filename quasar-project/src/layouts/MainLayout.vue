@@ -107,18 +107,40 @@ import { storeToRefs } from 'pinia';
 import type { User } from 'src/contracts';
 import usersService from 'src/services/UsersService';
 import { usePresenceStore } from 'src/stores/presence-store';
+import { useTypingStore } from 'src/stores/typing-store';
+import ChannelService from 'src/services/ChannelService';
 
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
 const channelStore = useChannelStore();
 const inviteStore = useInviteStore();
+const typingStore = useTypingStore();
 const { user: currentUser } = storeToRefs(auth);
 const mobileTab = ref<'channels' | 'chat' | 'members'>('chat');
 const presence = usePresenceStore();
 
 const panelMode = ref<'users' | 'invites'>('users');
 const inviteCount = computed(() => inviteStore.invites.length);
+
+// Watch for status changes
+watch(
+  () => currentUser.value?.status,
+  (newStatus, oldStatus) => {
+    if (newStatus === 'offline' && oldStatus !== 'offline') {
+      // User went offline - clear all typing indicators they see
+      typingStore.clearAll();
+      
+      // Also send stop typing if they were typing in current channel
+      if (currentChannel.value) {
+        const manager = ChannelService.in(currentChannel.value.name.toLowerCase());
+        if (manager) {
+          manager.sendTypingStop();
+        }
+      }
+    }
+  }
+);
 
 onMounted(() => {
   if (currentUser.value) {

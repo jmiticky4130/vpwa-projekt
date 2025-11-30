@@ -136,6 +136,7 @@ function registerChannelNamespace() {
             // Manage "active" room membership for message delivery
             if (status === 'offline') {
               socket.leave('active')
+              socket.to('active').emit('user:typing:stop', { userId: user.id })
             } else {
               socket.join('active')
             }
@@ -157,6 +158,19 @@ function registerChannelNamespace() {
         }
       )
 
+      // typing:stop event
+      socket.on('typing:stop', () => {
+        socket.to('active').emit('user:typing:stop', { userId: user.id })
+      })
+
+      // typing:content event (for live preview)
+      socket.on('typing:content', (content: string) => {
+        const status = (socket.data as any).status
+        if (status === 'online' || status === 'dnd') {
+          socket.to('active').emit('user:typing:content', { userId: user.id, nickname: user.nickname, content })
+        }
+      })
+
       socket.on('disconnect', (reason: string) => {
         if (reason !== 'io server disconnect') {
           logger.debug('[ws] disconnect %s %s', socket.id, reason)
@@ -165,6 +179,7 @@ function registerChannelNamespace() {
         // Broadcast offline status to others
         const payload = { userId: user.id, status: 'offline' }
         socket.broadcast.emit('myStatus', payload)
+        socket.broadcast.emit('user:typing:stop', { userId: user.id })
       })
     } catch (e) {
       logger.error('[ws] Unhandled error on connection %s: %s', socket.id, (e as any)?.message)

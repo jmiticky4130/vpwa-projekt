@@ -47,6 +47,7 @@
       </div>
     </div>
     <div class="absolute-bottom full-width">
+      <TypingIndicator v-if="channel" :channelName="channel.name" />
       <ChannelTextField
         v-if="channel"
         :channelName="channel.name"
@@ -63,6 +64,7 @@
 import { computed, ref, watch, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import ChannelTextField from 'src/components/ChannelTextField.vue';
+import TypingIndicator from 'src/components/TypingIndicator.vue';
 import UserList from 'src/components/UserList.vue';
 import InviteList from 'src/components/InviteList.vue';
 import { useAuthStore } from 'src/stores/auth-store';
@@ -255,7 +257,7 @@ h4 {
 
 .q-page {
   gap: 12px;
-  padding-bottom: 84px;
+  padding-bottom: 90px;
   display: flex;
   flex-direction: column;
   min-height: 0;
