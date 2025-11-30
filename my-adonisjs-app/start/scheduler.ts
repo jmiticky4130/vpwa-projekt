@@ -6,9 +6,12 @@ import { io } from './ws.js'
 export async function startScheduler() {
   logger.info('[scheduler] Starting background scheduler')
   // Schedule daily cleanup
-  setInterval(async () => {
-    await cleanupInactiveChannels()
-  }, 24 * 60 * 60 * 1000)
+  setInterval(
+    async () => {
+      await cleanupInactiveChannels()
+    },
+    24 * 60 * 60 * 1000
+  )
 }
 
 async function cleanupInactiveChannels() {
@@ -32,7 +35,7 @@ async function cleanupInactiveChannels() {
 
     for (const channel of channelsToDelete) {
       logger.info(`[scheduler] Deleting channel: ${channel.name} (ID: ${channel.id})`)
-      
+
       // Notify clients and disconnect
       if (io) {
         const ns = io.of(`/channels/${channel.name}`)

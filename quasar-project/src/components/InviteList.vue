@@ -59,11 +59,12 @@ function formatExpires(expiresAt: string) {
 }
 
 async function acceptInvite(id: number) {
+  const invite = invites.value.find((i) => i.id === id)
   const ok = await inviteStore.accept(id)
   if (ok) {
     // Refresh channels so membership appears in UI
     await channelStore.refresh()
-    notifyJoinedChannel('') // channel name will be in refreshed list; optional improvement: pass exact name
+    notifyJoinedChannel(invite?.channelName ?? '')
   }
 }
 

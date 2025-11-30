@@ -34,7 +34,7 @@ export const useInviteStore = defineStore('invites', () => {
       return true;
     } catch (e) {
       setError(e);
-      return false;
+      throw e;
     }
   }
 
@@ -58,7 +58,7 @@ export const useInviteStore = defineStore('invites', () => {
       return true;
     } catch (e) {
       setError(e);
-      return false;
+      throw e;
     }
   }
 
@@ -69,9 +69,15 @@ export const useInviteStore = defineStore('invites', () => {
       return true;
     } catch (e) {
       setError(e);
-      return false;
+      throw e;
     }
   }
 
-  return { invites, loading, error, refresh, sendInvite, accept, decline };
+  function reset() {
+    invites.value = [];
+    loading.value = false;
+    error.value = null;
+  }
+
+  return { invites, loading, error, refresh, sendInvite, accept, decline, reset };
 });

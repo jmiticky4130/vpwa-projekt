@@ -87,7 +87,7 @@ function registerChannelNamespace() {
           return { userId: u.id, status: st }
         })
         .filter((s) => s !== null)
-      
+
       if (statuses.length > 0) {
         socket.emit('allStatuses', statuses)
       }
@@ -101,7 +101,7 @@ function registerChannelNamespace() {
             authorId: user.id,
             body,
           })
-          
+
           // Update channel last activity
           channel.lastActivity = DateTime.now()
           await channel.save()
@@ -175,7 +175,7 @@ function registerChannelNamespace() {
         if (reason !== 'io server disconnect') {
           logger.debug('[ws] disconnect %s %s', socket.id, reason)
         }
-        
+
         // Broadcast offline status to others
         const payload = { userId: user.id, status: 'offline' }
         socket.broadcast.emit('myStatus', payload)
@@ -193,7 +193,7 @@ function registerUserNamespace() {
   const userNs = io.of(/^\/users\/\d+$/)
   // Attach auth middleware to dynamic namespace
   userNs.use(authMiddleware.wsHandle.bind(authMiddleware))
-  
+
   userNs.on('connection', async (socket) => {
     try {
       const nsName: string = socket.nsp.name // e.g. /users/1
