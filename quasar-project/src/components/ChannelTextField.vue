@@ -14,12 +14,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useChannelStore } from 'src/stores/channel-store';
 import { useAuthStore } from 'src/stores/auth-store';
 import { useNotify } from 'src/util/notification';
 import { storeToRefs } from 'pinia';
+import ChannelService from 'src/services/ChannelService';
 
 const props = defineProps<{ channelName?: string }>();
 const emit = defineEmits<{ submit: [value: string]; system: [value: string]; membersChanged: []; listMembers: [] }>();
@@ -30,6 +31,37 @@ const placeholder = computed(() =>
 const router = useRouter();
 const channelStore = useChannelStore();
 const { user: currentUser } = storeToRefs(useAuthStore());
+
+let typingTimeout: ReturnType<typeof setTimeout> | null = null;
+let isTyping = false;
+
+watch(message, (newVal) => {
+  if (!props.channelName) return;
+  
+  // Don't send typing events for commands
+  if (newVal.startsWith('/')) return;
+
+  const manager = ChannelService.in(props.channelName.toLowerCase());
+  if (!manager) return;
+
+  if (newVal.length > 0 && !isTyping) {
+    isTyping = true;
+  }
+
+  if (isTyping) {
+    manager.sendTypingContent(newVal);
+  }
+
+  if (typingTimeout) clearTimeout(typingTimeout);
+  
+  typingTimeout = setTimeout(() => {
+    if (isTyping) {
+      isTyping = false;
+      manager.sendTypingStop();
+    }
+  }, 3000);
+});
+
 const {
   notifyJoinedChannel,
   notifyAlreadyMember,
@@ -289,6 +321,14 @@ async function handleCommand(cmd: Command) {
 async function submit() {
   const value = message.value.trim();
   if (!value) return;
+
+  if (typingTimeout) clearTimeout(typingTimeout);
+  if (isTyping && props.channelName) {
+      const manager = ChannelService.in(props.channelName.toLowerCase());
+      if (manager) manager.sendTypingStop();
+      isTyping = false;
+  }
+
   const cmd = tryParseCommand(value);
   if (cmd) {
     await handleCommand(cmd);
@@ -305,9 +345,7 @@ function onEnter() {
 
 <style scoped>
 .channel-text-field {
-  position: absolute;
   width: 100%;
-  bottom: 0;
   padding: 8px 12px;
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
