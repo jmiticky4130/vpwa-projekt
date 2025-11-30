@@ -74,11 +74,24 @@ api.interceptors.response.use(
     }
 
     // server api request returned unathorized response so we trrigger logout
-    if (error.response.status === 401 && !error.response.config.dontTriggerLogout) {
+    if (error.response && error.response.status === 401 && !error.response.config.dontTriggerLogout) {
       authManager.logout()
     }
 
-    return Promise.reject(Error(error))
+    let message = error.message
+    if (error.response && error.response.data) {
+      if (error.response.data.message) {
+        message = error.response.data.message
+      } else if (error.response.data.error) {
+        message = error.response.data.error
+      }
+    }
+    
+    if (Array.isArray(message)) {
+      message = message.join(', ')
+    }
+
+    return Promise.reject(new Error(message))
   }
 )
 

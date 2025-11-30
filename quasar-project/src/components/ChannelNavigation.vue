@@ -13,12 +13,12 @@
         <q-tab
           name="Add new channel"
           class="channel-tab create-channel-tab"
-          style="color: white;"
+          style="color: white"
           @click.stop="openCreateDialog"
           color="primary"
         >
           <div class="tab-content row items-center justify-center full-width">
-            <span style="color: white;" class="create-channel-label">Create new channel</span>
+            <span style="color: white" class="create-channel-label">Create new channel</span>
           </div>
         </q-tab>
 
@@ -58,11 +58,11 @@
               role="button"
               aria-label="Leave channel"
             >
-              <q-icon name="logout" size="15px" style="margin-top: 1px; transform: scaleX(-1);" />
+              <q-icon name="logout" size="15px" style="margin-top: 1px; transform: scaleX(-1)" />
             </q-badge>
-            
+
             <span class="channel-name col text-center ellipsis">{{ ch.name }}</span>
-            
+
             <q-badge
               :color="ch.public ? 'green-8' : 'indigo-7'"
               class="text-white channel-badge q-ml-sm"
@@ -131,8 +131,10 @@ const {
   //notifyPrivateChannelBlocked,
   notifyChannelCreated,
   //notifyBannedCannotJoin,
-  notifyChannelDeleted,
+  notifyLeftChannel,
   notifyChannelAlreadyExists,
+  notifyError,
+  notifyChannelDeleted,
 } = useNotify();
 
 const emit = defineEmits<{
@@ -189,50 +191,88 @@ function onSelect(slug: string) {
 }
 
 async function deleteChannel(name: string, uid: number | null) {
-  await channelStore.removeChannel(name, uid);
-  void router.push({ path: '/' });
-  notifyChannelDeleted(name);
+  try {
+    await channelStore.removeChannel(name, uid);
+    notifyChannelDeleted(name, true);
+    void router.push({ path: '/' });
+  } catch (err: unknown) {
+    const error = err as { message?: string; response?: { data?: { message?: string | string[] } } };
+    let errorMsg = 'An unexpected error occurred';
+    
+    if (error.response && error.response.data && error.response.data.message) {
+      const msg = error.response.data.message;
+      errorMsg = Array.isArray(msg) ? msg.join(', ') : msg;
+    } else if (error.message) {
+      errorMsg = error.message;
+    }
+    notifyError(errorMsg);
+  }
 }
 
 async function leaveChannel(name: string) {
-  await channelStore.removeMember(name);
-  void router.push({ path: '/' });
+  try {
+    await channelStore.removeMember(name);
+    notifyLeftChannel(name);
+    void router.push({ path: '/' });
+  } catch (err: unknown) {
+    const error = err as { message?: string; response?: { data?: { message?: string | string[] } } };
+    let errorMsg = 'An unexpected error occurred';
+    
+    if (error.response && error.response.data && error.response.data.message) {
+      const msg = error.response.data.message;
+      errorMsg = Array.isArray(msg) ? msg.join(', ') : msg;
+    } else if (error.message) {
+      errorMsg = error.message;
+    }
+    notifyError(errorMsg);
+  }
 }
 
 async function createChannel() {
   const name = newChannelName.value.trim();
   if (!name) return;
 
-  // Check global existence first
-  const exists = await channelStore.checkChannelExists(name);
-  if (exists) {
-    
-    const ch = channelStore.findByName(name);
-    if (ch) {
-      // User is already a member
-      await router.push({ name: 'channel', params: { slug: ch.name } });
-      notifyAlreadyMember(ch.name);
-      showCreateDialog.value = false;
+  try {
+    // Check global existence first
+    const exists = await channelStore.checkChannelExists(name);
+    if (exists) {
+      const ch = channelStore.findByName(name);
+      if (ch) {
+        // User is already a member
+        await router.push({ name: 'channel', params: { slug: ch.name } });
+        notifyAlreadyMember(ch.name);
+        showCreateDialog.value = false;
+        return;
+      }
+      notifyChannelAlreadyExists(name);
       return;
     }
-    notifyChannelAlreadyExists(name);
-    return;
-  }
 
-  const payload: { name: string; isPublic: boolean } = {
-    name: name,
-    isPublic: newChannelPublic.value,
-  };
-  const created = await channelStore.addChannel(payload);
+    const payload: { name: string; isPublic: boolean } = {
+      name: name,
+      isPublic: newChannelPublic.value,
+    };
+    const created = await channelStore.addChannel(payload);
 
-  const uid = currentUser.value?.id;
-  if (uid != null) {
-    await channelStore.addMember(created?.name ?? '');
+    const uid = currentUser.value?.id;
+    if (uid != null) {
+      await channelStore.addMember(created?.name ?? '');
+    }
+    onSelect(created?.name ?? '');
+    notifyChannelCreated(created?.name ?? '', created?.public ? 'public' : 'private');
+    showCreateDialog.value = false;
+  } catch (err: unknown) {
+    const error = err as { message?: string; response?: { data?: { message?: string | string[] } } };
+    let errorMsg = 'An unexpected error occurred';
+    
+    if (error.response && error.response.data && error.response.data.message) {
+      const msg = error.response.data.message;
+      errorMsg = Array.isArray(msg) ? msg.join(', ') : msg;
+    } else if (error.message) {
+      errorMsg = error.message;
+    }
+    notifyError(errorMsg);
   }
-  onSelect(created?.name ?? '');
-  notifyChannelCreated(created?.name ?? '', created?.public ? 'public' : 'private');
-  showCreateDialog.value = false;
-  return;
 }
 
 // keep active tab in sync when route changes externally

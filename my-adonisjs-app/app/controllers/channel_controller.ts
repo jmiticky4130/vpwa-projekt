@@ -2,6 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import Channel from '#models/channel'
 import Membership from '#models/membership'
 import KickLog from '#models/kick_log'
+import Invite from '#models/invite'
 import { DateTime } from 'luxon'
 import { createChannelValidator, channelNameValidator } from '../validators/channel.js'
 import { io } from '../../start/ws.js'
@@ -9,7 +10,8 @@ import { io } from '../../start/ws.js'
 export default class ChannelController {
   async create({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
-    const { name, isPublic } = await request.validateUsing(createChannelValidator)
+    const { name: rawName, isPublic } = await request.validateUsing(createChannelValidator)
+    const name = rawName.toLowerCase()
     // New logic: if channel with same name exists and is public, auto-join instead of failing.
     const existing = await Channel.findBy('name', name)
     if (existing) {
@@ -20,7 +22,7 @@ export default class ChannelController {
           .where('channel_id', existing.id)
           .andWhere('target_user_id', user.id)
           .count('* as total')
-        
+
         const kickCount = Number(kickCountResult[0].$extras.total)
         if (kickCount >= 3) {
           return response.forbidden({ error: 'You are banned from this channel' })
@@ -34,7 +36,8 @@ export default class ChannelController {
           await user.related('channels').attach([existing.id])
           io.of(`/channels/${existing.name}`).emit('channel:members_updated')
         }
-        return existing
+        const result = existing.serialize()
+        return { ...result, wasJoined: true }
       }
       // Non-public existing channel; preserve original conflict behaviour.
       return response.conflict({ error: 'Channel with this name already exists' })
@@ -71,13 +74,25 @@ export default class ChannelController {
 
   async delete({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
-    const { name } = await request.validateUsing(channelNameValidator)
+    const { name: rawName } = await request.validateUsing(channelNameValidator)
+    const name = rawName.toLowerCase()
 
     const channel = await Channel.findBy('name', name)
     if (!channel) return response.notFound({ error: 'Channel not found' })
     if (channel.createdBy !== user.id) {
       return response.forbidden({ error: 'Only the channel creator can delete this channel' })
     }
+
+    // Broadcast channel deletion to all users in the channel except the creator
+    const namespace = io.of(`/channels/${channel.name}`)
+    const sockets = await namespace.fetchSockets()
+    for (const socket of sockets) {
+      const socketUser = socket.data?.user
+      if (socketUser && socketUser.id !== user.id) {
+        socket.emit('channel:deleted')
+      }
+    }
+
     await KickLog.query().where('channel_id', channel.id).delete()
     await channel.delete()
     return { success: true }
@@ -99,12 +114,13 @@ export default class ChannelController {
       members: Array.isArray((c as any).members) ? (c as any).members.map((m: any) => m.id) : [],
     }))
   }
-
   async join({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
-    const { name } = await request.validateUsing(channelNameValidator)
+    const { name: rawName } = await request.validateUsing(channelNameValidator)
+    const name = rawName.toLowerCase()
 
     const channel = await Channel.findBy('name', name)
+
     if (!channel) return response.notFound({ error: 'Channel not found' })
 
     // Check for ban (3 or more kick logs)
@@ -112,7 +128,7 @@ export default class ChannelController {
       .where('channel_id', channel.id)
       .andWhere('target_user_id', user.id)
       .count('* as total')
-    
+
     const kickCount = Number(kickCountResult[0].$extras.total)
     if (kickCount >= 3) {
       return response.forbidden({ error: 'You are banned from this channel' })
@@ -127,14 +143,29 @@ export default class ChannelController {
       return { success: true, message: 'Already a member' }
     }
 
+    if (!channel.public) {
+      const invite = await Invite.query()
+        .where('channel_id', channel.id)
+        .andWhere('to_user_id', user.id)
+        .andWhere('status', 'pending')
+        .first()
+
+      if (!invite) {
+        return response.forbidden({ error: 'Channel is private. You need an invite to join.' })
+      }
+
+      invite.status = 'accepted'
+      await invite.save()
+    }
+
     await user.related('channels').attach([channel.id])
     io.of(`/channels/${channel.name}`).emit('channel:members_updated')
     return { success: true }
   }
-
   async leave({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
-    const { name } = await request.validateUsing(channelNameValidator)
+    const { name: rawName } = await request.validateUsing(channelNameValidator)
+    const name = rawName.toLowerCase()
 
     const channel = await Channel.findBy('name', name)
     if (!channel) return response.notFound({ error: 'Channel not found' })
@@ -200,6 +231,12 @@ export default class ChannelController {
     const target = await UserModel.query().whereRaw('LOWER(nickname) = ?', [nickname]).first()
     if (!target) return response.notFound({ error: 'User not found' })
 
+    if (target.id === user.id) {
+      return response.forbidden({
+        error: 'You cannot revoke yourself. Use /cancel to delete the channel.',
+      })
+    }
+
     // Check membership
     const membership = await Membership.query()
       .where('user_id', target.id)
@@ -234,7 +271,9 @@ export default class ChannelController {
     // Permission check
     const isCreator = channel.createdBy === user.id
     if (!channel.public && !isCreator) {
-      return response.forbidden({ error: 'Only the channel creator can kick members in private channels' })
+      return response.forbidden({
+        error: 'Only the channel creator can kick members in private channels',
+      })
     }
 
     // Find target user by nickname (case-insensitive)
@@ -267,7 +306,7 @@ export default class ChannelController {
       .andWhere('target_user_id', target.id)
       .andWhere('voter_user_id', user.id)
       .first()
-    
+
     if (existingKick) {
       return response.conflict({ error: 'You have already kicked this user' })
     }
@@ -290,21 +329,5 @@ export default class ChannelController {
     io.of(`/channels/${channel.name}`).emit('channel:members_updated')
     io.of(`/channels/${channel.name}`).emit('channel:kicked', { userId: target.id })
     return { success: true, kicked: true, message: `User kicked` }
-  }
-
-  /**
-   * GET /channel/exists
-   * Query: { name: string }
-   * Checks if a channel exists by name
-   */
-  async exists({ request, response }: HttpContext) {
-    const nameRaw = request.input('name')
-    if (typeof nameRaw !== 'string' || nameRaw.trim() === '') {
-      return response.badRequest({ error: 'Invalid channel name' })
-    }
-    const name = nameRaw.trim()
-    // Check exact match as per create logic
-    const channel = await Channel.findBy('name', name)
-    return { exists: !!channel }
   }
 }
