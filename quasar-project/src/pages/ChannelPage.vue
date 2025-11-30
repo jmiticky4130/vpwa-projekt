@@ -9,7 +9,7 @@
           <q-badge v-if="channelCreatorLabel" color="indigo-6" class="text-white">
             Creator: {{ channelCreatorLabel }}
           </q-badge>
-          <h4 class="q-ma-none text-white ellipsis"># {{ channel.name }}</h4>
+          <h4 class="q-ma-none text-white ellipsis"><span style="color: #999999">#</span>{{ channel.name }}</h4>
         </header>
         <div class="channel-sub text-grey-5" v-if="channel">
           You are viewing <strong>{{ channel.name }}</strong>
