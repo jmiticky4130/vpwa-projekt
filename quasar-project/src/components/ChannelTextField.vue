@@ -340,13 +340,6 @@ async function submit() {
       if (manager) manager.sendTypingStop();
       isTyping = false;
   }
-
-  const cmd = tryParseCommand(value);
-  if (cmd) {
-    await handleCommand(cmd);
-  } else {
-    emit('submit', value);
-  }
   
   message.value = '';
   loading.value = true;
