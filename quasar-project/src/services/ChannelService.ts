@@ -1,5 +1,4 @@
 import type { RawMessage, SerializedMessage } from "src/contracts";
-//import type { BootParams } from "./SocketManager";
 import { SocketManager } from "./SocketManager";
 import { useMessageStore } from "src/stores/message-store";
 import { api } from "src/boot/axios";
@@ -10,6 +9,8 @@ import { useChannelStore } from "src/stores/channel-store";
 import { useTypingStore } from "src/stores/typing-store";
 import { useNotify } from "src/util/notification";
 
+
+// vacsina kodu v tomto subore je prevzata z cvicenia
 class UserSocketManager extends SocketManager {
   public subscribe(): void {
     const inviteStore = useInviteStore();

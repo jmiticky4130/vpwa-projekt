@@ -1,3 +1,5 @@
+// vacsina kodu v tomto subore je prevzata z cvicenia
+
 import { boot } from "quasar/wrappers";
 import type { Manager } from "socket.io-client";
 import { SocketManager } from "src/services/SocketManager";

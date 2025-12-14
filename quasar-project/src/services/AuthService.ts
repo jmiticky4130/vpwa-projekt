@@ -1,3 +1,5 @@
+// vacsina kodu v tomto subore je prevzata z cvicenia
+
 import type { AxiosError, AxiosRequestConfig } from 'axios'
 import type { ApiToken, LoginCredentials, RegisterData, User } from '../contracts'
 import { api } from 'src/boot/axios'

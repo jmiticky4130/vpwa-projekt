@@ -1,3 +1,5 @@
+// zaklad kodu v tomto subore je prevzaty z cvicenia
+
 import { Server } from 'socket.io'
 import app from '@adonisjs/core/services/app'
 import server from '@adonisjs/core/services/server'

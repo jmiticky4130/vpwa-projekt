@@ -1,3 +1,4 @@
+// vacsina kodu v tomto subore je prevzata z cvicenia
 import { LocalStorage } from 'quasar'
 
 type ChangeListener = (newToken: string | null, oldToken: string | null) => void

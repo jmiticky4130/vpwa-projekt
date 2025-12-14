@@ -28,6 +28,7 @@ export default class AuthMiddleware {
     return next()
   }
 
+  // vacsina kodu v wshandle je prevzata z cvicenia
   public async wsHandle(socket: Socket, next: (err?: Error) => void) {
     try {
       // Try to get token from handshake auth or Authorization header

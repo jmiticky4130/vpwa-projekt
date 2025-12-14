@@ -1,3 +1,5 @@
+// vacsina kodu v tomto subore je prevzata z cvicenia
+
 import { boot } from 'quasar/wrappers'
 import axios, { type AxiosInstance } from 'axios'
 import { authManager } from 'src/services'

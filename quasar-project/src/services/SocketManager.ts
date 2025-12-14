@@ -2,6 +2,8 @@ import { Manager } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 import { authManager } from ".";
 
+// vacsina kodu v tomto subore je prevzata z cvicenia
+
 // Params passed from Quasar boot file
 export interface BootParams {
   // we only need app if someone wants to access it in subscribe
