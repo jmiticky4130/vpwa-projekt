@@ -115,6 +115,8 @@ async function submit() {
   const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!form.nickname.trim()) {
     fieldErrors.value.nickname = 'Nickname is required';
+  } else if (form.nickname !== form.nickname.toLowerCase()) {
+    fieldErrors.value.nickname = 'Nickname must be all lowercase';
   }
   if (!form.firstName.trim()) {
     fieldErrors.value.firstName = 'First name is required';
