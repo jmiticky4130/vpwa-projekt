@@ -71,12 +71,12 @@ export const useChannelStore = defineStore('channels', () => {
     }
   }
 
-  // Return only channels the current auth user can access; optional newchannels sorting retained
+  // Return only channels the current auth user can access
   function list(params?: { userId?: number | null; newchannels?: string[] }) {
     
     const auth = useAuthStore()
     const userId = params?.userId ?? auth.user?.id ?? null
-    // Merge params.newchannels with store's newlyAccepted
+
     const newSet = new Set([
       ...(params?.newchannels ?? []).map((s) => s.toLowerCase()),
       ...newlyAccepted.value

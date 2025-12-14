@@ -126,11 +126,8 @@ import { storeToRefs } from 'pinia';
 import { useNotify } from 'src/util/notification';
 import { useAuthStore } from 'src/stores/auth-store';
 const {
-  //notifyJoinedChannel,
   notifyAlreadyMember,
-  //notifyPrivateChannelBlocked,
   notifyChannelCreated,
-  //notifyBannedCannotJoin,
   notifyLeftChannel,
   notifyChannelAlreadyExists,
   notifyError,
@@ -146,7 +143,7 @@ const { user: currentUser } = storeToRefs(useAuthStore());
 const channels = computed<Channel[]>(() => {
   const uid = currentUser.value?.id;
   if (uid == null) return [];
-  return channelStore.list({ userId: uid, newchannels: [] }); // TODO must add new channels logic back later
+  return channelStore.list({ userId: uid, newchannels: [] });
 });
 
 const router = useRouter();
@@ -280,7 +277,7 @@ watch(
   () => route.params.slug,
   (slug) => {
     const s = slug ? String(slug) : '';
-    if (s && s !== activeSlug.value) activeSlug.value = s;
+    if (s !== activeSlug.value) activeSlug.value = s;
   },
 );
 </script>

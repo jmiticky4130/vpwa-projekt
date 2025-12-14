@@ -38,7 +38,7 @@ export default boot(({ router }) => {
       return loginRoute(to)
     }
 
-    // If we have a token, verify it (without triggering global logout on 401)
+    // If we have a token, verify it
     if (hasToken) {
       if (auth.user) {
         isAuthenticated = true

@@ -131,7 +131,7 @@ function tryParseCommand(value: string): Command | null {
 async function handleCommand(cmd: Command) {
   if (cmd.name === 'join') {
     const targetNameRaw = cmd.args[0]?.trim();
-    const mode = cmd.args[1]?.toLowerCase(); // 'public' | 'private' | undefined
+    const mode = cmd.args[1]?.toLowerCase(); 
 
     if (!targetNameRaw) return;
     const targetName = targetNameRaw.replace(/^#/, '').toLowerCase();
@@ -148,7 +148,6 @@ async function handleCommand(cmd: Command) {
     const exists = await channelStore.checkChannelExists(targetName);
 
     if (exists) {
-      // If user explicitly requested to create a channel (by specifying mode), fail if it exists
       if (mode === 'public' || mode === 'private') {
         notifyChannelAlreadyExists(targetName);
         return;
@@ -222,14 +221,12 @@ async function handleCommand(cmd: Command) {
     }
     const identifierRaw = cmd.args.join(' ').trim();
     if (!identifierRaw) return;
-    // Call invite store
+
     const { useInviteStore } = await import('src/stores/invite-store');
     const inviteStore = useInviteStore();
     const ok = await inviteStore.sendInvite(ch.name.toLowerCase(), identifierRaw.replace(/^@/, ''));
     if (ok) {
-      // Existing notification helper
       const targetDisplay = identifierRaw.replace(/^@/, '');
-      // notifyInviteSuccess available but not currently destructured; dynamic import notification for success
       const { useNotify } = await import('src/util/notification');
       useNotify().notifyInviteSuccess(targetDisplay, ch.name);
     }
@@ -274,7 +271,6 @@ async function handleCommand(cmd: Command) {
     }
     const ch = channelStore.findByName(currentName);
     if (!ch) return;
-    // Permission check handled by backend, but we can do a quick check for private channels
     const isCreator = currentUser.value?.id === ch.creatorId;
     if (!ch.public && !isCreator) {
       notifyKickNotAllowedPrivate();

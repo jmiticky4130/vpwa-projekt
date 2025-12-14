@@ -12,16 +12,13 @@ export interface AuthError {
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  // State
   const user = ref<User | null>(null)
   const status = ref<AuthStatus>('success')
   const errors = ref<AuthError[]>([])
 
-  // Getters
   const isAuthenticated = computed(() => user.value !== null)
   const loading = computed(() => status.value === 'pending')
 
-  // Actions
   function AUTH_START(): void {
     status.value = 'pending'
     errors.value = []
@@ -30,7 +27,6 @@ export const useAuthStore = defineStore('auth', () => {
   function AUTH_SUCCESS(userData: User | null): void {
     status.value = 'success'
     if (userData) {
-      // Append client-only defaults on successful auth fetch
       user.value = {
         ...userData,
         status: userData.status ?? 'online',
@@ -47,13 +43,11 @@ export const useAuthStore = defineStore('auth', () => {
     const anyErr = err as any
 
     if (Array.isArray(err)) {
-      // array of { message, field? }
       errors.value = err.filter(
         (e): e is AuthError =>
           typeof e === 'object' && e !== null && 'message' in e
       )
     } else if (anyErr?.response?.data?.error) {
-      // Server provided error message
       errors.value = [{ message: anyErr.response.data.error }]
     } else if (err instanceof Error) {
       errors.value = [{ message: err.message }]
@@ -62,24 +56,23 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** Connect to all channels the user is a member of */
   async function connectToMemberChannels(): Promise<void> {
     try {
       const { useChannelStore } = await import('./channel-store')
       const channelStore = useChannelStore()
       
-      // Fetch latest channel list
+      // fetch latest channel list
       await channelStore.refresh()
       
       if (channelStore.error) {
         console.error('[auth] Channel store refresh failed:', channelStore.error)
       }
 
-      // Get channels user is member of
+      // get channels user is member of
       const memberChannels = channelStore.list()
       console.log(`[auth] Found ${memberChannels.length} member channels to connect`)
       
-      // Join socket for each channel (silently, without loading messages into UI)
+      // join socket for each channel
       for (const channel of memberChannels) {
         const key = channel.name.toLowerCase()
         
@@ -91,7 +84,7 @@ export const useAuthStore = defineStore('auth', () => {
           console.log(`[auth] Already joined channel: ${key}`)
         }
 
-        // Ensure socket is connected
+        // ensure socket is connected
         if (manager && !manager.socket.connected) {
            console.log(`[auth] Socket not connected for ${key}, connecting...`)
            manager.socket.connect()
@@ -102,7 +95,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** Verify auth token & fetch current user */
   async function check(): Promise<boolean> {
     try {
       AUTH_START()
@@ -123,7 +115,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** Register a new user */
   async function register(form: RegisterData): Promise<User> {
     try {
       AUTH_START()
@@ -136,7 +127,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** Log in & save API token */
   async function login(credentials: LoginCredentials): Promise<ApiToken> {
     try {
       AUTH_START()
@@ -150,7 +140,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** Log out & clear token */
   async function logout(): Promise<void> {
     try {
       AUTH_START()

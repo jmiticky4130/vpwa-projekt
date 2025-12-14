@@ -26,9 +26,7 @@ export interface User {
   email: string
   createdAt: string,
   updatedAt: string
-  // Client-side UI fields appended after login
   status?: 'online' | 'dnd' | 'offline'
   showOnlyDirectedMessages?: boolean
-  // Server-provided list of new channels (placeholder for now)
   newchannels: string[]
 }

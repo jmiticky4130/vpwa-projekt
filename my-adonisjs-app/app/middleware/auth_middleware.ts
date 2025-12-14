@@ -69,11 +69,7 @@ export default class AuthMiddleware {
         )
         return next(err)
       }
-
-      /**
-       * Resolve the user from the token.
-       * accessToken.tokenableId is the user id for DbAccessTokensProvider.forModel(User, ...)
-       */
+      // Load user for the token
       const user = await User.find(accessToken.tokenableId)
 
       if (!user) {

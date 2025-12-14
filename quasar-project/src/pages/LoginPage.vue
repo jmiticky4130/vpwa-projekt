@@ -74,7 +74,6 @@ const fieldErrors = ref<{ [k: string]: string | null }>({ email: null, password:
 
 async function submit() {
   // reset auth errors
-  // (auth store resets on AUTH_START automatically when we call login)
 
   Object.keys(fieldErrors.value).forEach((k) => (fieldErrors.value[k] = null));
   const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -90,11 +89,11 @@ async function submit() {
   }
   try {
     await auth.login({ email: email.value, password: password.value });
-    // Redirect immediately after login - router guard will handle auth.check()
+    // Redirect after login 
     await router.push('/');
   } catch (e) {
     console.error('Login failed', e);
-    // auth store already captured errors; field errors stay as-is
+    // auth store already captured errors
   }
 }
 

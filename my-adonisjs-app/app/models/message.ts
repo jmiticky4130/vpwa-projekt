@@ -20,7 +20,6 @@ export default class Message extends BaseModel {
   @column.dateTime({ columnName: 'created_at', autoCreate: true })
   declare createdAt: DateTime
 
-  // Relations
   @belongsTo(() => Channel, { foreignKey: 'channelId' })
   declare channel: BelongsTo<typeof Channel>
 

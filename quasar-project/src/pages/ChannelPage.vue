@@ -89,7 +89,7 @@ const channel = computed<Channel | undefined>(() => {
   return channelStore.channels.find((c) => c.name.toLowerCase() === slug);
 });
 
-// Redirect if channel is removed (e.g. kicked/revoked)
+// Redirect if channel is removed
 watch(
   () => channel.value,
   (val) => {

@@ -2,8 +2,7 @@ import { LocalStorage } from 'quasar'
 
 type ChangeListener = (newToken: string | null, oldToken: string | null) => void
 
-// this handles token storing to localstorage and notifying about changes
-// also triggereing listeners when storage key is changed from another browser tab
+// handles token storing to localstorage and notifying about changes
 class AuthManager {
   private currentToken: string | null = this.getToken()
   private onChangeListeners: ChangeListener[] = []
@@ -49,7 +48,7 @@ class AuthManager {
     }
   }
 
-  // this is just shortcut for adding change listener which calls callback only when token was removed
+  //shortcut for adding change listener which calls callback only when token was removed
   public onLogout (listener: () => void): () => void {
     return this.onChange((token) => {
       if (token === null) {
@@ -67,7 +66,7 @@ class AuthManager {
     this.notifyListeners()
   }
 
-  // this is just an alias for removing the token from storage
+  // alias for removing the token from storage
   public logout (): void {
     return this.removeToken()
   }

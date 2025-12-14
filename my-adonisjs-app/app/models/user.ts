@@ -35,7 +35,6 @@ export default class User extends compose(BaseModel, AuthFinder) {
   @column.dateTime({ columnName: 'created_at', autoCreate: true })
   declare createdAt: DateTime
 
-  // Relations
   @hasMany(() => Message, { foreignKey: 'authorId' })
   declare sentMessages: HasMany<typeof Message>
 

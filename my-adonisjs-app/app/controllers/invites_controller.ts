@@ -7,10 +7,6 @@ import { DateTime } from 'luxon'
 import { io } from '../../start/ws.js'
 
 export default class InvitesController {
-  /**
-   * GET /invites
-   * Returns pending invites for the authenticated user
-   */
   async list({ auth }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const invites = await Invite.query()
@@ -30,12 +26,6 @@ export default class InvitesController {
     }))
   }
 
-  /**
-   * POST /invites/create
-   * Body: { channelName: string, target: string }
-   * target can be nickname or email
-   * Rules: if channel is private only creator can invite; if public any member can invite.
-   */
   async create({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const channelName: string = request.input('channelName')?.trim()?.toLowerCase()
@@ -121,10 +111,6 @@ export default class InvitesController {
     return { success: true, id: invite.id }
   }
 
-  /**
-   * POST /invites/respond
-   * Body: { inviteId: number, action: 'accept' | 'decline' }
-   */
   async respond({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const inviteId = Number(request.input('inviteId'))

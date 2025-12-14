@@ -43,7 +43,7 @@ class UserSocketManager extends SocketManager {
 }
 
 class ChannelSocketManager extends SocketManager {
-  public subscribe(/*params: BootParams*/): void {
+  public subscribe(): void {
     const channel = this.namespace.split("/").pop() as string;
     const messageStore = useMessageStore();
     const presence = usePresenceStore();
@@ -65,6 +65,7 @@ class ChannelSocketManager extends SocketManager {
     this.socket.off('channel:members_updated');
     this.socket.off('channel:kicked');
     this.socket.off('channel:revoked');
+    this.socket.off('channel:updated');
     this.socket.off('user:typing:stop');
     this.socket.off('user:typing:content');
 
@@ -92,6 +93,14 @@ class ChannelSocketManager extends SocketManager {
         console.log(`[channel-socket] My access was revoked from ${channel}`);
         channelStore.removeChannelLocal(channel);
         useNotify().notifyRevokedAccess(channel);
+      }
+    });
+
+    this.socket.on("channel:updated", (payload: { public: boolean }) => {
+      console.log(`[channel-socket] Channel ${channel} updated:`, payload);
+      const ch = channelStore.findByName(channel);
+      if (ch) {
+        ch.public = payload.public;
       }
     });
 

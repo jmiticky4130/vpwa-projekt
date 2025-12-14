@@ -123,7 +123,7 @@ const presence = usePresenceStore();
 const panelMode = ref<'users' | 'invites'>('users');
 const inviteCount = computed(() => inviteStore.invites.length);
 
-// Watch for status changes
+
 watch(
   () => currentUser.value?.status,
   (newStatus, oldStatus) => {

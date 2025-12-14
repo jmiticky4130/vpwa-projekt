@@ -17,7 +17,7 @@ export default class Invite extends BaseModel {
   declare toUserId: number
 
   @column()
-  declare status: string // 'pending' | 'accepted' | 'declined'
+  declare status: string
 
   @column.dateTime({ columnName: 'created_at', autoCreate: true })
   declare createdAt: DateTime

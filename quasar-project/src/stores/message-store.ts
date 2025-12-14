@@ -15,16 +15,13 @@ export interface MessageStoreState {
 }
 
 export const useMessageStore = defineStore('messages', () => {
-  // State
   const loading = ref(false)
   const error = ref<Error | null>(null)
   const messages = ref<Record<string, SerializedMessage[]>>({})
-  // queue of raw messages written while offline; keyed by channel
   const offlineQueues = ref<Record<string, RawMessage[]>>({})
   const active = ref<string | null>(null)
   const totals = ref<Record<string, number>>({})
 
-  // Getters
   const joinedChannels = computed(() => Object.keys(messages.value))
   
   const currentMessages = computed(() => {
@@ -37,7 +34,6 @@ export const useMessageStore = defineStore('messages', () => {
     return arr[arr.length - 1] as SerializedMessage
   })
 
-  // Actions
   function setActive(channel: string | null) {
     active.value = channel
   }
@@ -77,12 +73,11 @@ export const useMessageStore = defineStore('messages', () => {
     if (!messages.value[channel]) {
       messages.value[channel] = []
     }
-    // Prevent duplicate entries (can happen if the same websocket event
-    // fires twice during HMR or double subscription scenarios)
+    // Prevent duplicate entries 
     const exists = messages.value[channel].some((m) => m.id === message.id)
     if (!exists) {
       messages.value[channel].push(message)
-      // Increment total count so infinite scroll knows there's more history relative to new size
+      // Increment total count so infinite scroll
       if (totals.value[channel] !== undefined) {
         totals.value[channel]++
       }
@@ -101,16 +96,14 @@ export const useMessageStore = defineStore('messages', () => {
   async function join(channel: string): Promise<void> {
     try {
       loadingStart()
-      // Ensure socket connection for live updates
       let manager = ChannelService.in(channel)
       if (!manager) {
         manager = ChannelService.join(channel)
       }
-      // Fetch history via HTTP
+      // Fetch history
       const response = await ChannelService.fetchMessages(channel, 0, 20)
       loadingSuccess(channel, response.messages, response.total)
       if (!active.value) active.value = channel
-      // If there are queued offline messages for this channel, display them as pending
     } catch (e) {
       loadingError(e)
       throw e
@@ -172,13 +165,12 @@ export const useMessageStore = defineStore('messages', () => {
       return
     }
     console.log(`[message-store] Flushing ${queued.length} queued messages for ${channel}`)
-    // send sequentially to preserve order
     for (const raw of queued) {
       try {
         await manager.addMessage(raw)
       } catch (e) {
         console.error('[message-store] Failed to send queued message, re-queueing', e)
-        queueOffline(channel, raw) // put back (end) and abort remaining flush
+        queueOffline(channel, raw) 
         return
       }
     }

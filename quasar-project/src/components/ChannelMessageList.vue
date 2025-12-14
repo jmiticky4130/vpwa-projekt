@@ -163,7 +163,7 @@ function isNearBottom(): boolean {
 async function appendMessage(text: string) {
   try {
     await messageStore.addMessage({ channel: props.channelKey, message: text });
-    // The incoming echo (via websocket 'message') updates the store and UI
+    // The incoming echo  updates the store and UI
     scrollToBottom();
   } catch (e) {
     console.error('Failed to send message:', e);
@@ -172,7 +172,7 @@ async function appendMessage(text: string) {
 
 function isOwn(m: Message) {
   const me = currentUserDisplay.value;
-  // Queued messages (sending) are always owned by current user
+  // Queued messages are always owned by current user
   if (m.state === 'sending') return true;
   if (m.name && me) {
     return m.state === 'sent' && m.name === me;

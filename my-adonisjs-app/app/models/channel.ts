@@ -24,7 +24,6 @@ export default class Channel extends BaseModel {
   @column.dateTime({ columnName: 'last_activity' })
   declare lastActivity: DateTime | null
 
-  // Relations
   @belongsTo(() => User, { foreignKey: 'createdBy' })
   declare creator: BelongsTo<typeof User>
 

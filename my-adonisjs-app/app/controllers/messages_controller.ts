@@ -3,10 +3,6 @@ import Channel from '#models/channel'
 import Message from '#models/message'
 
 export default class MessagesController {
-  /**
-   * GET /messages/get?channelName=&skip=&limit=
-   * Returns messages for a channel if requester is a member
-   */
   async getByChannel({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const channelName = request.input('channelName')
@@ -33,7 +29,6 @@ export default class MessagesController {
       .limit(limit)
       .preload('author')
 
-    // Reverse to get chronological order (oldest first in the array)
     messages.reverse()
 
     const data = messages.map((m) => ({

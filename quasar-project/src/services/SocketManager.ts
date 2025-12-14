@@ -2,7 +2,7 @@ import { Manager } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 import { authManager } from ".";
 
-// Params passed from Quasar boot file (see src/boot/socket.io.ts)
+// Params passed from Quasar boot file
 export interface BootParams {
   // we only need app if someone wants to access it in subscribe
   app: unknown;

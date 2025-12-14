@@ -29,13 +29,10 @@ export function useNotify() {
 
     const status = user.value?.status ?? 'online';
 
-    // dnd: nechodia ziadne notifikacie
-    // offline: neprichádzajú používateľovi správy ani notifikacie (handled here for notifications)
     if (status === 'dnd' || status === 'offline') return false;
 
     const onlyDirected = user.value?.showOnlyDirectedMessages ?? false;
 
-    // directNotify: iba pre správy, ktoré sú mu adresované @userName
     if (onlyDirected) {
       const nick = user.value?.nickname?.trim();
       if (!nick) return false;

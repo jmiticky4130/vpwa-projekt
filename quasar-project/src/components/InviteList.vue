@@ -69,10 +69,7 @@ async function acceptInvite(id: number) {
 }
 
 async function declineInvite(id: number) {
-  const ok = await inviteStore.decline(id)
-  if (ok) {
-    // Nothing else for now
-  }
+  await inviteStore.decline(id)
 }
 
 onMounted(() => {

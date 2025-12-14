@@ -9,7 +9,6 @@ export interface TypingUser {
 }
 
 export const useTypingStore = defineStore('typing', () => {
-  // Structure: { [channelName]: { [userId]: TypingUser } }
   const typingUsers = ref<Record<string, Record<number, TypingUser>>>({});
 
   function setTyping(channel: string, userId: number, nickname: string) {

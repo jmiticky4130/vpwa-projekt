@@ -12,7 +12,6 @@ export default class ChannelController {
     const user = await auth.use('api').authenticate()
     const { name: rawName, isPublic } = await request.validateUsing(createChannelValidator)
     const name = rawName.toLowerCase()
-    // New logic: if channel with same name exists and is public, auto-join instead of failing.
     const existing = await Channel.findBy('name', name)
     if (existing) {
       // If existing channel is public and user is not yet a member, attach membership and return channel.
@@ -204,6 +203,7 @@ export default class ChannelController {
     }
     channel.public = publicRaw
     await channel.save()
+    io.of(`/channels/${channel.name}`).emit('channel:updated', { public: channel.public })
     return { success: true, public: channel.public }
   }
 

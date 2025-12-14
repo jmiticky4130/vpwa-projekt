@@ -2,10 +2,6 @@ import type { HttpContext } from '@adonisjs/core/http'
 import Channel from '#models/channel'
 
 export default class UsersController {
-  /**
-   * GET /users/get?channelId=
-   * Returns users for a given channel if requester is a member
-   */
   async getByChannel({ auth, request, response }: HttpContext) {
     const user = await auth.use('api').authenticate()
     const channelIdRaw = request.input('channelId') ?? request.qs().channelId

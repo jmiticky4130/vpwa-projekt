@@ -9,7 +9,7 @@ export const usePresenceStore = defineStore('presence', () => {
   function set(userId: number, status: PresenceStatus) {
     const prev = statuses.value[userId]
     if (prev === status) {
-      // Skip redundant log updates for unchanged status
+      // Skip redundant log updates
       return
     }
     console.log(`[presence] Update received for user ${userId}: ${prev ?? 'unset'} -> ${status}`)
